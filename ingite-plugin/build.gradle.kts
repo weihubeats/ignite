@@ -15,7 +15,7 @@ repositories {
 
 dependencies {
     intellijPlatform {
-        create("IC", "2025.1.4.1")
+        create("IC", "2023.2.5")
         bundledPlugin("com.intellij.java")
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
 
@@ -31,11 +31,10 @@ dependencies {
 intellijPlatform {
     pluginConfiguration {
         ideaVersion {
-            sinceBuild = "251"
-        }
+            sinceBuild = "232"        }
 
         changeNotes = """
-            Initial version
+            Support older IDEA versions (from 2023.2+).
         """.trimIndent()
     }
 }
@@ -43,8 +42,8 @@ intellijPlatform {
 tasks {
     // Set the JVM compatibility versions
     withType<JavaCompile> {
-        sourceCompatibility = "21"
-        targetCompatibility = "21"
+        sourceCompatibility = "17"
+        targetCompatibility = "17"
     }
 }
 

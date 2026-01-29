@@ -15,7 +15,7 @@ repositories {
 
 dependencies {
     intellijPlatform {
-        create("IC", "2025.1.4.1")
+        create("IC", "2023.2.5")
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
 
     }
@@ -38,7 +38,11 @@ intellijPlatform {
 tasks {
     // Set the JVM compatibility versions
     withType<JavaCompile> {
-        sourceCompatibility = "21"
-        targetCompatibility = "21"
+        sourceCompatibility = "17"
+        targetCompatibility = "17"
+    }
+
+    named("prepareJarSearchableOptions") {
+        enabled = false
     }
 }
