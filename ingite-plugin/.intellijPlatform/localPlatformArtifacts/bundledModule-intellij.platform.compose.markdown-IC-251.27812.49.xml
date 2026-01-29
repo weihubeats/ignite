@@ -1,0 +1,19 @@
+<ivy-module version="2.0">
+  <info organisation="bundledModule" module="intellij.platform.compose.markdown" revision="IC-251.27812.49"/>
+  <configurations>
+    <conf name="default" visibility="public"/>
+  </configurations>
+  <publications>
+    <artifact name="intellij.platform.compose.markdown" ext="jar" conf="default" url="lib/modules"/>
+  </publications>
+  <dependencies>
+    <dependency org="bundledModule" name="intellij.platform.compose" rev="IC-251.27812.49"/>
+    <dependency org="bundledModule" name="intellij.platform.jewel.markdown.core" rev="IC-251.27812.49"/>
+    <dependency org="bundledModule" name="intellij.platform.jewel.markdown.ideLafBridgeStyling" rev="IC-251.27812.49"/>
+    <dependency org="bundledModule" name="intellij.platform.jewel.markdown.extensions.autolink" rev="IC-251.27812.49"/>
+    <dependency org="bundledModule" name="intellij.platform.jewel.markdown.extensions.gfmAlerts" rev="IC-251.27812.49"/>
+    <dependency org="bundledModule" name="intellij.platform.jewel.markdown.extensions.gfmTables" rev="IC-251.27812.49"/>
+    <dependency org="bundledModule" name="intellij.platform.jewel.markdown.extensions.gfmStrikethrough" rev="IC-251.27812.49"/>
+    <dependency org="bundledModule" name="intellij.platform.jewel.markdown.extensions.images" rev="IC-251.27812.49"/>
+  </dependencies>
+</ivy-module>

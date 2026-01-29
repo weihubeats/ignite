@@ -1,0 +1,26 @@
+<!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
+<idea-plugin>
+    <!-- Unique identifier of the plugin. It should be FQN. It cannot be changed between the plugin versions. -->
+    <id>io.github.weihubeats.ingite-plugin</id>
+
+    <name>Ignite</name>
+
+    <vendor url="https://www.ss.com">77</vendor>
+
+    <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.modules.java</depends>
+
+    <description>Invoke any method in running process.hhh</description>
+
+    <depends>com.intellij.modules.platform</depends>
+
+    <actions>
+        <action id="IgniteRun" class="com.ignite.action.IgniteAction" text="Ignite Run" description="Run method via Arthas">
+            <add-to-group group-id="EditorPopupMenu" anchor="first"/>
+        </action>
+    </actions>
+
+    <extensions defaultExtensionNs="com.intellij">
+
+    </extensions>
+</idea-plugin>
