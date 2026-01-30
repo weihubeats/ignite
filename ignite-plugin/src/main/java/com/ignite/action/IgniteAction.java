@@ -218,7 +218,7 @@ public class IgniteAction extends AnAction {
 
         // 只显示 OK 按钮，不显示 Cancel
         @Override
-        protected Action @NotNull [] createActions() {
+        protected Action[] createActions() {
             return new Action[]{getOKAction()};
         }
     }

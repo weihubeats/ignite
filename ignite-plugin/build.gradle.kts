@@ -3,11 +3,9 @@ plugins {
     id("org.jetbrains.intellij.platform") version "2.2.1"
 }
 
-group = "io.github.weihubeats"
-version = "1.0-SNAPSHOT"
-
 repositories {
     mavenCentral()
+
     intellijPlatform {
         defaultRepositories()
     }
@@ -31,7 +29,9 @@ dependencies {
 intellijPlatform {
     pluginConfiguration {
         ideaVersion {
-            sinceBuild = "232"        }
+            sinceBuild = "232"
+            untilBuild = provider { null }
+        }
 
         changeNotes = """
             Support older IDEA versions (from 2023.2+).
@@ -39,11 +39,4 @@ intellijPlatform {
     }
 }
 
-tasks {
-    // Set the JVM compatibility versions
-    withType<JavaCompile> {
-        sourceCompatibility = "17"
-        targetCompatibility = "17"
-    }
-}
 

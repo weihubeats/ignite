@@ -1,48 +1,19 @@
-plugins {
-    id("java")
-    id("org.jetbrains.intellij.platform") version "2.7.1"
-}
 
 group = "io.github.weihubeats"
 version = "1.0-SNAPSHOT"
 
-repositories {
-    mavenCentral()
-    intellijPlatform {
-        defaultRepositories()
-    }
-}
+subprojects {
+    // 在这里应用 Java 插件即可，它是内置的，直接用名字
+    apply(plugin = "java")
 
-dependencies {
-    intellijPlatform {
-        create("IC", "2023.2.5")
-        testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
-
+    repositories {
+        // 建议保留阿里云镜像以加快下载
+        maven { url = uri("https://maven.aliyun.com/repository/public") }
+        mavenCentral()
     }
 
-
-}
-
-intellijPlatform {
-    pluginConfiguration {
-        ideaVersion {
-            sinceBuild = "251"
-        }
-
-        changeNotes = """
-            Initial version
-        """.trimIndent()
-    }
-}
-
-tasks {
-    // Set the JVM compatibility versions
-    withType<JavaCompile> {
+    tasks.withType<JavaCompile> {
         sourceCompatibility = "17"
         targetCompatibility = "17"
-    }
-
-    named("prepareJarSearchableOptions") {
-        enabled = false
     }
 }
