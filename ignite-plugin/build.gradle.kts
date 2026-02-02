@@ -13,7 +13,7 @@ repositories {
 
 dependencies {
     intellijPlatform {
-        create("IC", "2023.2.5")
+        create("IC", "2023.3.6")
         bundledPlugin("com.intellij.java")
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
 

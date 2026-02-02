@@ -16,8 +16,9 @@ import org.apache.commons.net.telnet.TelnetClient;
 public class ArthasController {
 
     private static final String ARTHAS_JAR_NAME = "arthas-boot.jar";
+
     private static final int PORT = 3658;
-    // 匹配 Arthas 的命令提示符 [arthas@12345]$
+
     private static final Pattern PROMPT_PATTERN = Pattern.compile("\\[arthas@\\d+\\]\\$\\s*$");
 
     // ... getArthasJar 和 attach 方法保持不变 (参考上一次回答) ...
@@ -27,20 +28,24 @@ public class ArthasController {
     private static File getArthasJar() throws IOException {
         File tempFile = new File(System.getProperty("java.io.tmpdir"), ARTHAS_JAR_NAME);
         try (InputStream inputStream = ArthasController.class.getResourceAsStream("/bin/" + ARTHAS_JAR_NAME)) {
-            if (inputStream == null) throw new FileNotFoundException("未找到 " + ARTHAS_JAR_NAME);
+            if (inputStream == null)
+                throw new FileNotFoundException("未找到 " + ARTHAS_JAR_NAME);
             Files.copy(inputStream, tempFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
         }
         return tempFile;
     }
 
     public static void attach(String pid) throws Exception {
-        if (isPortOpen(PORT)) return;
+        if (isPortOpen(PORT))
+            return;
         File jar = getArthasJar();
 
         String javaHome = System.getProperty("java.home");
         String javaBin = javaHome + File.separator + "bin" + File.separator + "java";
-        if (System.getProperty("os.name").toLowerCase().contains("win")) javaBin += ".exe";
-        if (!new File(javaBin).exists()) javaBin = "java";
+        if (System.getProperty("os.name").toLowerCase().contains("win"))
+            javaBin += ".exe";
+        if (!new File(javaBin).exists())
+            javaBin = "java";
 
         ProcessBuilder pb = new ProcessBuilder(
             javaBin, "-jar", jar.getAbsolutePath(),
@@ -59,11 +64,11 @@ public class ArthasController {
                 process.destroy();
                 throw new RuntimeException("Attach 超时");
             }
-            if (isPortOpen(PORT)) return; // 端口开了就是成功了
+            if (isPortOpen(PORT))
+                return; // 端口开了就是成功了
             Thread.sleep(100);
         }
     }
-
 
     /**
      * 发送命令逻辑重构
@@ -78,15 +83,12 @@ public class ArthasController {
             InputStream in = telnet.getInputStream();
             BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
 
-            // [核心逻辑修复]
-            // 1. 先读取并丢弃连接成功后的 Welcome Banner，直到看到提示符
+
             readUntilPrompt(reader);
 
-            // 2. 通道干净了，现在发送命令
             out.println(command);
             out.flush();
 
-            // 3. 读取命令执行的真正结果
             String rawResult = readUntilPrompt(reader);
 
             telnet.disconnect();
@@ -110,7 +112,8 @@ public class ArthasController {
         while (System.currentTimeMillis() < deadline) {
             if (reader.ready()) {
                 int read = reader.read(buffer, 0, buffer.length);
-                if (read == -1) break;
+                if (read == -1)
+                    break;
                 sb.append(buffer, 0, read);
 
                 // 检查缓冲区末尾是否包含提示符
@@ -118,7 +121,10 @@ public class ArthasController {
                     return sb.toString();
                 }
             } else {
-                try { Thread.sleep(50); } catch (InterruptedException e) {}
+                try {
+                    Thread.sleep(50);
+                } catch (InterruptedException e) {
+                }
             }
         }
         return sb.toString();

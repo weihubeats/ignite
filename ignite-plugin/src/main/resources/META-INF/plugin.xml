@@ -9,18 +9,25 @@
 
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.modules.java</depends>
+    <depends>com.intellij.modules.json</depends>
+
 
     <description>Invoke any method in running process.hhh</description>
 
-    <depends>com.intellij.modules.platform</depends>
 
     <actions>
-        <action id="IgniteRun" class="com.ignite.action.IgniteAction" text="Ignite Run" description="Run method via Arthas">
+        <action id="IgniteRun" class="com.ignite.action.IgniteRunAction" text="Ignite Run"
+                description="Run method via Arthas">
             <add-to-group group-id="EditorPopupMenu" anchor="first"/>
         </action>
     </actions>
 
     <extensions defaultExtensionNs="com.intellij">
+
+
+        <toolWindow id="Ignite Console"
+                    anchor="bottom"
+                    factoryClass="com.ignite.infra.IgniteToolWindowFactory"/>
 
     </extensions>
 </idea-plugin>
