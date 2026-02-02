@@ -3,6 +3,9 @@ plugins {
     id("org.jetbrains.intellij.platform") version "2.2.1"
 }
 
+group = "io.github.weihubeats"
+version = "1.0.0"
+
 repositories {
     mavenCentral()
 
@@ -28,10 +31,15 @@ dependencies {
 
 intellijPlatform {
     pluginConfiguration {
+
+        version = project.version.toString()
+        id = "io.github.weihubeats.ignite-plugin"
         ideaVersion {
             sinceBuild = "232"
             untilBuild = provider { null }
         }
+
+        description = file("src/main/resources/META-INF/description.html").readText()
 
         changeNotes = """
             Support older IDEA versions (from 2023.2+).

@@ -1,18 +1,14 @@
-<!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
 <idea-plugin>
-    <!-- Unique identifier of the plugin. It should be FQN. It cannot be changed between the plugin versions. -->
     <id>io.github.weihubeats.ignite-plugin</id>
+
 
     <name>Ignite</name>
 
-    <vendor url="https://www.ss.com">77</vendor>
+    <vendor url="https://github.com/weihubeats">weihubeats</vendor>
 
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.modules.java</depends>
     <depends>com.intellij.modules.json</depends>
-
-
-    <description>Invoke any method in running process.hhh</description>
 
 
     <actions>
