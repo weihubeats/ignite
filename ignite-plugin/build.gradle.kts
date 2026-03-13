@@ -4,7 +4,12 @@ plugins {
 }
 
 group = "io.github.weihubeats"
-version = "1.0.0"
+version = "1.0.2"
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
 
 repositories {
     mavenCentral()
@@ -42,7 +47,14 @@ intellijPlatform {
         description = file("src/main/resources/META-INF/description.html").readText()
 
         changeNotes = """
-            Support older IDEA versions (from 2023.2+).
+            Version 1.0.2:
+            - Fixed Connection refused issue with retry mechanism
+            - Auto-attach on project startup for already running processes
+            - Improved connection health check and automatic reconnection
+            - Faster method execution with pre-established connections
+            
+            Version 1.0.0:
+            - Support older IDEA versions (from 2023.2+).
         """.trimIndent()
     }
 }

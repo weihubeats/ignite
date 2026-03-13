@@ -98,8 +98,12 @@ public class IgniteRunAction extends AnAction {
             @Override
             public void run(@NotNull ProgressIndicator indicator) {
                 try {
-                    indicator.setText("连接 " + selectedApp.displayName + "...");
-                    ArthasController.attach(selectedApp.pid);
+                    // 检查连接状态，如果需要则重新 attach
+                    indicator.setText("检查连接状态...");
+                    if (!ArthasController.isArthasConnected()) {
+                        indicator.setText("连接到 " + selectedApp.displayName + "...");
+                        ArthasController.attach(selectedApp.pid);
+                    }
 
                     indicator.setText("构建指令...");
                     String command = ReadAction.compute(() -> {
@@ -110,18 +114,27 @@ public class IgniteRunAction extends AnAction {
 
                     indicator.setText("执行中...");
                     String rawResult = ArthasController.sendCommand(command);
+
+                    // 如果执行失败且是连接问题，尝试重新 attach 后重试一次
+                    if (rawResult.contains("通信失败") || rawResult.contains("Connection refused")) {
+                        indicator.setText("连接断开，重新连接...");
+                        ArthasController.attach(selectedApp.pid);
+                        rawResult = ArthasController.sendCommand(command);
+                    }
+
                     String friendlyResult = parseResult(rawResult);
 
                     String className = method.getContainingClass() != null ? method.getContainingClass().getQualifiedName() : "UnknownClass";
                     String methodSig = className + "." + method.getName();
 
-                    // 2. 调用新的打印方法
+                    // 调用打印方法
+                    String finalFriendlyResult = friendlyResult;
                     ApplicationManager.getApplication().invokeLater(() -> {
                         IgniteConsoleService.getInstance(project).printExecution(
                             selectedApp.displayName,  // 服务名 (e.g. UserService (12345))
                             methodSig,                // 方法签名
                             jsonArgs,                 // 入参 JSON
-                            friendlyResult            // 结果 JSON
+                            finalFriendlyResult       // 结果 JSON
                         );
                     });
 
@@ -129,7 +142,7 @@ public class IgniteRunAction extends AnAction {
                     ApplicationManager.getApplication().invokeLater(() -> {
                         String msg = ex.getMessage();
                         // 针对 Debug 超时的友好提示
-                        if (msg.contains("Read timed out") || msg.contains("timeout")) {
+                        if (msg != null && (msg.contains("Read timed out") || msg.contains("timeout"))) {
                             msg += "\n\n【提示】: 检测到超时。如果当前处于 Debug 断点暂停状态，Arthas 无法执行代码。请 Resume 放行断点后再试。";
                         }
                         showNotification(project, "执行失败: " + msg, NotificationType.ERROR);
