@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "io.github.weihubeats"
-version = "1.0.2"
+version = "1.0.4"
 
 java {
     sourceCompatibility = JavaVersion.VERSION_17
