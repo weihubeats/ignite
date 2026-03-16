@@ -16,10 +16,6 @@
                 description="Run method via Arthas">
             <add-to-group group-id="EditorPopupMenu" anchor="first"/>
         </action>
-        <action id="IgniteFormatJson" class="com.ignite.action.FormatJsonAction" text="Format JSON"
-                description="Format selected JSON or entire document">
-            <add-to-group group-id="EditorPopupMenu" anchor="after" relative-to-action="IgniteRun"/>
-        </action>
     </actions>
 
     <extensions defaultExtensionNs="com.intellij">
