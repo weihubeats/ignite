@@ -1,5 +1,8 @@
 package com.ignite.action;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.ignite.core.CommandBuilder;
 import com.ignite.core.DataGenerator;
 import com.ignite.core.OgnlConverter;
@@ -40,6 +43,7 @@ import java.awt.Dimension;
 import java.awt.Font;
 import java.util.List;
 import javax.swing.Action;
+import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -87,7 +91,8 @@ public class IgniteRunAction extends AnAction {
         if (!dialog.showAndGet())
             return;
 
-        String jsonArgs = dialog.getJsonInput();
+        String rawJson = dialog.getJsonInput();
+        final String jsonArgs = (rawJson == null || rawJson.trim().isEmpty()) ? "{}" : rawJson.trim();
         PidUtils.RunningApp selectedApp = dialog.getSelectedApp();
 
         // 3. 【参数记忆】保存本次运行的参数
@@ -97,40 +102,65 @@ public class IgniteRunAction extends AnAction {
         new Task.Backgroundable(project, "Ignite: " + method.getName(), true) {
             @Override
             public void run(@NotNull ProgressIndicator indicator) {
+                IgniteConsoleService console = IgniteConsoleService.getInstance(project);
                 try {
                     // 检查连接状态，如果需要则重新 attach
                     indicator.setText("检查连接状态...");
-                    if (!ArthasController.isArthasConnected()) {
+                    console.printLog("[Ignite] 检查 Arthas 连接状态...");
+
+                    if (!ArthasController.isArthasConnected(selectedApp.pid)) {
                         indicator.setText("连接到 " + selectedApp.displayName + "...");
-                        ArthasController.attach(selectedApp.pid);
+                        console.printLog("[Ignite] 连接到 " + selectedApp.displayName + " (PID: " + selectedApp.pid + ")");
+                        ArthasController.attach(selectedApp.pid, console);
+                    } else {
+                        console.printLog("[Ignite] Arthas 已连接，直接使用现有连接");
                     }
 
                     indicator.setText("构建指令...");
-                    String command = ReadAction.compute(() -> {
+                    console.printLog("[Ignite] 构建 OGNL 指令...");
+                    String arthasLibPath = ArthasController.getArthasLibPath();
+                    // 在后台线程构建命令，避免阻塞 EDT
+                    String[] commandAndOgnl = ReadAction.nonBlocking(() -> {
                         com.intellij.psi.PsiParameter[] parameters = method.getParameterList().getParameters();
                         String ognlArgs = OgnlConverter.jsonToOgnl(jsonArgs, parameters);
-                        return CommandBuilder.build(method, ognlArgs);
-                    });
+                        String cmd = CommandBuilder.build(method, ognlArgs, arthasLibPath);
+                        StringBuilder paramNames = new StringBuilder();
+                        for (int i = 0; i < parameters.length; i++) {
+                            if (i > 0) paramNames.append(", ");
+                            paramNames.append(parameters[i].getName());
+                        }
+                        return new String[]{ cmd, "params=[" + paramNames + "] ognlArgs=" + ognlArgs };
+                    }).executeSynchronously();
+                    String command = commandAndOgnl[0];
+                    console.printLog("[Ignite] " + commandAndOgnl[1]);
+                    console.printLog("[Ignite] 指令: " + command);
 
                     indicator.setText("执行中...");
+                    console.printLog("[Ignite] 发送命令到 Arthas...");
                     String rawResult = ArthasController.sendCommand(command);
+                    console.printLog("[Ignite] 收到响应，长度: " + rawResult.length() + " 字符");
 
                     // 如果执行失败且是连接问题，尝试重新 attach 后重试一次
                     if (rawResult.contains("通信失败") || rawResult.contains("Connection refused")) {
                         indicator.setText("连接断开，重新连接...");
-                        ArthasController.attach(selectedApp.pid);
+                        console.printLog("[Ignite] 连接断开，尝试重新 attach...");
+                        ArthasController.attach(selectedApp.pid, console);
                         rawResult = ArthasController.sendCommand(command);
+                        console.printLog("[Ignite] 重试完成");
                     }
 
                     String friendlyResult = parseResult(rawResult);
 
-                    String className = method.getContainingClass() != null ? method.getContainingClass().getQualifiedName() : "UnknownClass";
-                    String methodSig = className + "." + method.getName();
+                    // 在 ReadAction 中获取方法信息（后台线程安全）
+                    String methodSig = ReadAction.nonBlocking(() -> {
+                        String className = method.getContainingClass() != null ? method.getContainingClass().getQualifiedName() : "UnknownClass";
+                        return className + "." + method.getName();
+                    }).executeSynchronously();
 
                     // 调用打印方法
                     String finalFriendlyResult = friendlyResult;
                     ApplicationManager.getApplication().invokeLater(() -> {
-                        IgniteConsoleService.getInstance(project).printExecution(
+                        console.printExecution(
                             selectedApp.displayName,  // 服务名 (e.g. UserService (12345))
                             methodSig,                // 方法签名
                             jsonArgs,                 // 入参 JSON
@@ -224,7 +254,12 @@ public class IgniteRunAction extends AnAction {
             scrollPane.setPreferredSize(JBUI.size(600, 400));
 
             JPanel editorPanel = new JPanel(new BorderLayout());
-            editorPanel.add(new JLabel("入参 (JSON):"), BorderLayout.NORTH);
+            JPanel labelRow = new JPanel(new BorderLayout());
+            labelRow.add(new JLabel("入参 (JSON):"), BorderLayout.WEST);
+            JButton formatJsonButton = new JButton("格式化 JSON");
+            formatJsonButton.addActionListener(ev -> formatJsonInDialog());
+            labelRow.add(formatJsonButton, BorderLayout.EAST);
+            editorPanel.add(labelRow, BorderLayout.NORTH);
             editorPanel.add(scrollPane, BorderLayout.CENTER);
 
             panel.add(editorPanel, BorderLayout.CENTER);
@@ -238,6 +273,28 @@ public class IgniteRunAction extends AnAction {
                 if (file != null)
                     CodeStyleManager.getInstance(project).reformat(file);
             });
+        }
+
+        /** 格式化入参 JSON 文本框内容（用于「格式化 JSON」按钮） */
+        private void formatJsonInDialog() {
+            String text = jsonEditor.getText().trim();
+            if (text.isEmpty()) {
+                showDialogNotification(project, "请输入 JSON 后再格式化", NotificationType.WARNING);
+                return;
+            }
+            try {
+                ObjectMapper mapper = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
+                JsonNode node = mapper.readTree(text);
+                String formatted = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(node);
+                jsonEditor.setText(formatted);
+                showDialogNotification(project, "已格式化", NotificationType.INFORMATION);
+            } catch (Exception ex) {
+                showDialogNotification(project, "不是有效的 JSON: " + ex.getMessage(), NotificationType.ERROR);
+            }
+        }
+
+        private static void showDialogNotification(Project project, String content, NotificationType type) {
+            Notifications.Bus.notify(new Notification("Ignite Notification Group", "Ignite", content, type), project);
         }
 
         public PidUtils.RunningApp getSelectedApp() {

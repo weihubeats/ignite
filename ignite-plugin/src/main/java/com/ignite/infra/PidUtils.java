@@ -3,6 +3,7 @@ package com.ignite.infra;
 import com.intellij.execution.ExecutionManager;
 import com.intellij.execution.process.ProcessHandler;
 import com.intellij.execution.ui.RunContentDescriptor;
+import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.project.Project;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -16,19 +17,22 @@ public class PidUtils {
         List<RunningApp> apps = new ArrayList<>();
         if (project == null) return apps;
 
-        ExecutionManager executionManager = ExecutionManager.getInstance(project);
-        ProcessHandler[] runningProcesses = executionManager.getRunningProcesses();
+        // 在 ReadAction 中执行，避免线程问题
+        return ReadAction.compute(() -> {
+            ExecutionManager executionManager = ExecutionManager.getInstance(project);
+            ProcessHandler[] runningProcesses = executionManager.getRunningProcesses();
 
-        for (ProcessHandler handler : runningProcesses) {
-            if (handler.isProcessTerminated() || handler.isProcessTerminating()) continue;
+            for (ProcessHandler handler : runningProcesses) {
+                if (handler.isProcessTerminated() || handler.isProcessTerminating()) continue;
 
-            String pid = getPidFromHandler(handler);
-            if (pid != null) {
-                // handler.toString() 通常包含运行配置名
-                apps.add(new RunningApp(pid, handler.toString()));
+                String pid = getPidFromHandler(handler);
+                if (pid != null) {
+                    // handler.toString() 通常包含运行配置名
+                    apps.add(new RunningApp(pid, handler.toString()));
+                }
             }
-        }
-        return apps;
+            return apps;
+        });
     }
 
     private static String getPidFromHandler(ProcessHandler handler) {

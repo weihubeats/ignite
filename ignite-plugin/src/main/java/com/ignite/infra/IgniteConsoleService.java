@@ -68,6 +68,27 @@ public final class IgniteConsoleService {
         }
     }
 
+    /**
+     * 打印日志信息（线程安全）
+     */
+    public void printLog(String message) {
+        if (consoleView == null) return;
+
+        // 确保在 EDT 线程执行
+        if (!com.intellij.openapi.application.ApplicationManager.getApplication().isDispatchThread()) {
+            com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater(() -> printLogInternal(message));
+        } else {
+            printLogInternal(message);
+        }
+    }
+
+    private void printLogInternal(String message) {
+        activateWindow();
+        if (consoleView != null) {
+            consoleView.print(message + "\n", ConsoleViewContentType.LOG_INFO_OUTPUT);
+        }
+    }
+
     // 辅助方法：打印 Key-Value
     private void printKV(String key, String value) {
         consoleView.print(key + ": ", ConsoleViewContentType.SYSTEM_OUTPUT);
