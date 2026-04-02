@@ -137,19 +137,17 @@ public class IgniteRunAction extends AnAction {
 
                     indicator.setText("执行中...");
                     console.printLog("[Ignite] 发送命令到 Arthas...");
-                    String rawResult = ArthasController.sendCommand(command);
-                    console.printLog("[Ignite] 收到响应，长度: " + rawResult.length() + " 字符");
+                    ArthasController.sendCommandWithoutResult(command);
+                    console.printLog("[Ignite] 命令已发送（不等待方法返回结果）");
 
                     // 如果执行失败且是连接问题，尝试重新 attach 后重试一次
-                    if (rawResult.contains("通信失败") || rawResult.contains("Connection refused")) {
+                    if (!ArthasController.isArthasConnected(selectedApp.pid)) {
                         indicator.setText("连接断开，重新连接...");
                         console.printLog("[Ignite] 连接断开，尝试重新 attach...");
                         ArthasController.attach(selectedApp.pid, console);
-                        rawResult = ArthasController.sendCommand(command);
+                        ArthasController.sendCommandWithoutResult(command);
                         console.printLog("[Ignite] 重试完成");
                     }
-
-                    String friendlyResult = parseResult(rawResult);
 
                     // 在 ReadAction 中获取方法信息（后台线程安全）
                     String methodSig = ReadAction.nonBlocking(() -> {
@@ -158,13 +156,11 @@ public class IgniteRunAction extends AnAction {
                     }).executeSynchronously();
 
                     // 调用打印方法
-                    String finalFriendlyResult = friendlyResult;
                     ApplicationManager.getApplication().invokeLater(() -> {
                         console.printExecution(
                             selectedApp.displayName,  // 服务名 (e.g. UserService (12345))
                             methodSig,                // 方法签名
-                            jsonArgs,                 // 入参 JSON
-                            finalFriendlyResult       // 结果 JSON
+                            jsonArgs                  // 入参 JSON
                         );
                     });
 
@@ -304,31 +300,6 @@ public class IgniteRunAction extends AnAction {
         public String getJsonInput() {
             return jsonEditor.getText();
         }
-    }
-
-    // 解析结果逻辑保持不变
-    private String parseResult(String raw) {
-        if (raw == null)
-            return "";
-        String[] lines = raw.split("\n");
-        StringBuilder resultBuilder = new StringBuilder();
-        for (String line : lines) {
-            line = line.trim();
-            if (line.startsWith("vmtool") || line.contains("--action") || line.isEmpty())
-                continue;
-            if (line.startsWith("@")) {
-                int firstBracket = line.indexOf('[');
-                int lastBracket = line.lastIndexOf(']');
-                if (firstBracket > 0 && lastBracket > firstBracket) {
-                    resultBuilder.append(line, firstBracket + 1, lastBracket).append("\n");
-                } else {
-                    resultBuilder.append(line).append("\n");
-                }
-            } else {
-                resultBuilder.append(line).append("\n");
-            }
-        }
-        return resultBuilder.toString().trim();
     }
 
     private void showNotification(Project project, String content, NotificationType type) {

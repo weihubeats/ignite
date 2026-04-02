@@ -11,7 +11,6 @@ import java.net.SocketException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
-import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 import org.apache.commons.net.telnet.TelnetClient;
 
@@ -434,6 +433,13 @@ public class ArthasController {
         return sendCommandWithRetry(command, MAX_RETRY_ATTEMPTS);
     }
 
+    /**
+     * 发送命令但不等待方法返回结果，避免在 debug 断点场景下阻塞。
+     */
+    public static void sendCommandWithoutResult(String command) {
+        sendCommandWithoutResultWithRetry(command, MAX_RETRY_ATTEMPTS);
+    }
+
     private static String sendCommandWithRetry(String command, int remainingAttempts) {
         TelnetClient telnet = new TelnetClient();
         try {
@@ -473,6 +479,39 @@ public class ArthasController {
             }
             e.printStackTrace();
             return "通信失败: " + e.getMessage();
+        }
+    }
+
+    private static void sendCommandWithoutResultWithRetry(String command, int remainingAttempts) {
+        TelnetClient telnet = new TelnetClient();
+        try {
+            telnet.setConnectTimeout(CONNECT_TIMEOUT_MS);
+            telnet.connect("127.0.0.1", PORT);
+
+            PrintStream out = new PrintStream(telnet.getOutputStream(), true, "UTF-8");
+            InputStream in = telnet.getInputStream();
+            BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
+
+            String initialOutput = readUntilPrompt(reader);
+            if (!PROMPT_PATTERN.matcher(initialOutput).find()) {
+                throw new IOException("未能获取 Arthas 提示符");
+            }
+
+            out.println(command);
+            out.flush();
+            telnet.disconnect();
+        } catch (Exception e) {
+            if (remainingAttempts > 1 && isConnectionRefused(e)) {
+                System.out.println("[Ignite] Connection refused, retrying... (" + (MAX_RETRY_ATTEMPTS - remainingAttempts + 1) + "/" + MAX_RETRY_ATTEMPTS + ")");
+                try {
+                    Thread.sleep(RETRY_DELAY_MS);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                }
+                sendCommandWithoutResultWithRetry(command, remainingAttempts - 1);
+                return;
+            }
+            throw new RuntimeException("通信失败: " + e.getMessage(), e);
         }
     }
 

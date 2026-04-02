@@ -33,7 +33,7 @@ public final class IgniteConsoleService {
     /**
      * 【核心升级】打印完整的执行报告
      */
-    public void printExecution(String serviceName, String classMethod, String argsJson, String resultJson) {
+    public void printExecution(String serviceName, String classMethod, String argsJson) {
         activateWindow();
         if (consoleView == null) return;
 
@@ -51,11 +51,6 @@ public final class IgniteConsoleService {
         consoleView.print("\n", ConsoleViewContentType.NORMAL_OUTPUT); // 空行
         consoleView.print("▶ Parameters:\n", ConsoleViewContentType.SYSTEM_OUTPUT);
         printPrettyJson(argsJson, ConsoleViewContentType.USER_INPUT); // 入参用斜体/灰色表示
-
-        // 4. 打印结果 (Return Value)
-        consoleView.print("\n", ConsoleViewContentType.NORMAL_OUTPUT); // 空行
-        consoleView.print("▶ Return Value:\n", ConsoleViewContentType.SYSTEM_OUTPUT);
-        printPrettyJson(resultJson, ConsoleViewContentType.NORMAL_OUTPUT); // 结果用正常颜色
 
         consoleView.print("\n", ConsoleViewContentType.NORMAL_OUTPUT);
     }

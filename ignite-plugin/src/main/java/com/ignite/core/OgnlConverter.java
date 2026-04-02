@@ -27,7 +27,7 @@ public class OgnlConverter {
             }
 
             List<JsonNode> valuesByIndex = null;
-            if (root.isObject() && root.size() == parameters.length) {
+            if (root.isObject() && parameters.length > 1 && root.size() == parameters.length) {
                 final List<JsonNode> list = new ArrayList<>(parameters.length);
                 root.fields().forEachRemaining(e -> list.add(e.getValue()));
                 valuesByIndex = list;
