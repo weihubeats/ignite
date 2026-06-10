@@ -158,9 +158,9 @@ public class IgniteRunAction extends AnAction {
                     // 调用打印方法
                     ApplicationManager.getApplication().invokeLater(() -> {
                         console.printExecution(
-                            selectedApp.displayName,  // 服务名 (e.g. UserService (12345))
-                            methodSig,                // 方法签名
-                            jsonArgs                  // 入参 JSON
+                            selectedApp.displayName,
+                            methodSig,
+                            jsonArgs
                         );
                     });
 

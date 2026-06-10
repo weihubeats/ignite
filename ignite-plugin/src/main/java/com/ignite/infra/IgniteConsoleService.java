@@ -34,6 +34,10 @@ public final class IgniteConsoleService {
      * 【核心升级】打印完整的执行报告
      */
     public void printExecution(String serviceName, String classMethod, String argsJson) {
+        printExecution(serviceName, classMethod, argsJson, null);
+    }
+
+    public void printExecution(String serviceName, String classMethod, String argsJson, String result) {
         activateWindow();
         if (consoleView == null) return;
 
@@ -48,11 +52,33 @@ public final class IgniteConsoleService {
         printKV("Method Info   ", classMethod);
 
         // 3. 打印入参 (Parameters)
-        consoleView.print("\n", ConsoleViewContentType.NORMAL_OUTPUT); // 空行
+        consoleView.print("\n", ConsoleViewContentType.NORMAL_OUTPUT);
         consoleView.print("▶ Parameters:\n", ConsoleViewContentType.SYSTEM_OUTPUT);
-        printPrettyJson(argsJson, ConsoleViewContentType.USER_INPUT); // 入参用斜体/灰色表示
+        printPrettyJson(argsJson, ConsoleViewContentType.USER_INPUT);
+
+        // 4. 打印 Arthas 执行结果
+        if (result != null) {
+            consoleView.print("\n", ConsoleViewContentType.NORMAL_OUTPUT);
+            consoleView.print("▶ Result:\n", ConsoleViewContentType.SYSTEM_OUTPUT);
+            ConsoleViewContentType resultType = isErrorResult(result)
+                ? ConsoleViewContentType.ERROR_OUTPUT
+                : ConsoleViewContentType.NORMAL_OUTPUT;
+            consoleView.print(result + "\n", resultType);
+        }
 
         consoleView.print("\n", ConsoleViewContentType.NORMAL_OUTPUT);
+    }
+
+    private boolean isErrorResult(String result) {
+        if (result == null || result.isBlank()) {
+            return false;
+        }
+        String lower = result.toLowerCase();
+        return lower.contains("exception")
+            || lower.contains("error")
+            || lower.contains("failed")
+            || lower.contains("未找到")
+            || lower.contains("通信失败");
     }
 
     public void printError(String error) {

@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "io.github.weihubeats"
-version = "1.0.4"
+version = "1.0.6"
 
 java {
     sourceCompatibility = JavaVersion.VERSION_17
@@ -47,6 +47,11 @@ intellijPlatform {
         description = file("src/main/resources/META-INF/description.html").readText()
 
         changeNotes = """
+            Version 1.0.6:
+            - Fixed instance method invocation for Spring Beans and MQ Consumers
+            - Private/protected methods now use getDeclaredMethod + setAccessible
+            - Removed unsafe new-instance fallback; prefer Spring getBean and heap instances
+            
             Version 1.0.2:
             - Fixed Connection refused issue with retry mechanism
             - Auto-attach on project startup for already running processes

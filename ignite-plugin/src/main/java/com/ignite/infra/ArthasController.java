@@ -31,6 +31,7 @@ public class ArthasController {
     private static final int RETRY_DELAY_MS = 1000;
     private static final int CONNECT_TIMEOUT_MS = 5000;
     private static final int COMMAND_TIMEOUT_MS = 15000;
+    private static final int EXECUTION_TIMEOUT_MS = 120000;
 
     // 连接状态缓存
     private static volatile boolean cachedConnectionStatus = false;
@@ -460,7 +461,7 @@ public class ArthasController {
             out.println(command);
             out.flush();
 
-            String rawResult = readUntilPrompt(reader);
+            String rawResult = readUntilPrompt(reader, EXECUTION_TIMEOUT_MS);
 
             telnet.disconnect();
 
@@ -531,9 +532,13 @@ public class ArthasController {
      * 阻塞读取，直到遇到 Arthas 的命令提示符
      */
     private static String readUntilPrompt(BufferedReader reader) throws IOException {
+        return readUntilPrompt(reader, COMMAND_TIMEOUT_MS);
+    }
+
+    private static String readUntilPrompt(BufferedReader reader, int timeoutMs) throws IOException {
         StringBuilder sb = new StringBuilder();
         char[] buffer = new char[1024];
-        long deadline = System.currentTimeMillis() + COMMAND_TIMEOUT_MS;
+        long deadline = System.currentTimeMillis() + timeoutMs;
 
         while (System.currentTimeMillis() < deadline) {
             if (reader.ready()) {
