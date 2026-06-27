@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "io.github.weihubeats"
-version = "1.0.6"
+version = "1.0.7"
 
 java {
     sourceCompatibility = JavaVersion.VERSION_17
@@ -28,6 +28,7 @@ dependencies {
     }
 
     implementation("com.fasterxml.jackson.core:jackson-databind:2.15.2")
+    implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.15.2")
     implementation("net.datafaker:datafaker:2.0.2")
     implementation("commons-net:commons-net:3.9.0")
     implementation("org.apache.commons:commons-lang3:3.12.0")

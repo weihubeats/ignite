@@ -5,21 +5,25 @@
   </component>
   <component name="AutomaticModuleUnloader">
     <loaded-modules>
+      <module name="ignite" />
+      <module name="ignite.ignite-plugin" />
       <module name="ignite.ignite-plugin.main" />
       <module name="ignite.ignite-plugin.test" />
-      <module name="ignite.ignite-plugin" />
-      <module name="ignite" />
     </loaded-modules>
   </component>
   <component name="ChangeListManager">
     <list default="true" id="7f9169da-d10a-424f-8bb7-5ec7e4ade9b3" name="Changes" comment="update">
-      <change afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/ignite-plugin/src/main/java/com/ignite/action/IgniteRerunAction.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/ignite-plugin/src/main/java/com/ignite/core/IgniteMethodExecutor.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/ignite-plugin/src/main/java/com/ignite/core/JacksonSupport.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ignite-plugin/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/ignite-plugin/build.gradle.kts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/ignite-plugin/src/main/java/com/ignite/action/IgniteRunAction.java" beforeDir="false" afterPath="$PROJECT_DIR$/ignite-plugin/src/main/java/com/ignite/action/IgniteRunAction.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ignite-plugin/src/main/java/com/ignite/core/DataGenerator.java" beforeDir="false" afterPath="$PROJECT_DIR$/ignite-plugin/src/main/java/com/ignite/core/DataGenerator.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/ignite-plugin/src/main/java/com/ignite/core/OgnlConverter.java" beforeDir="false" afterPath="$PROJECT_DIR$/ignite-plugin/src/main/java/com/ignite/core/OgnlConverter.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ignite-plugin/src/main/java/com/ignite/infra/ArthasController.java" beforeDir="false" afterPath="$PROJECT_DIR$/ignite-plugin/src/main/java/com/ignite/infra/ArthasController.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/ignite-plugin/src/main/java/com/ignite/infra/IgniteConsoleService.java" beforeDir="false" afterPath="$PROJECT_DIR$/ignite-plugin/src/main/java/com/ignite/infra/IgniteConsoleService.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ignite-plugin/src/main/java/com/ignite/infra/IgniteToolWindowFactory.java" beforeDir="false" afterPath="$PROJECT_DIR$/ignite-plugin/src/main/java/com/ignite/infra/IgniteToolWindowFactory.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/ignite-plugin/src/main/resources/META-INF/plugin.xml" beforeDir="false" afterPath="$PROJECT_DIR$/ignite-plugin/src/main/resources/META-INF/plugin.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -57,20 +61,7 @@
               <path>
                 <item name="" type="6a2764b6:ExternalProjectsStructure$RootNode" />
                 <item name="ignite" type="f1a62948:ProjectNode" />
-                <item name="ignite-plugin" type="2d1252cf:ModuleNode" />
-              </path>
-              <path>
-                <item name="" type="6a2764b6:ExternalProjectsStructure$RootNode" />
-                <item name="ignite" type="f1a62948:ProjectNode" />
-                <item name="ignite-plugin" type="2d1252cf:ModuleNode" />
                 <item name="Tasks" type="e4a08cd1:TasksNode" />
-              </path>
-              <path>
-                <item name="" type="6a2764b6:ExternalProjectsStructure$RootNode" />
-                <item name="ignite" type="f1a62948:ProjectNode" />
-                <item name="ignite-plugin" type="2d1252cf:ModuleNode" />
-                <item name="Tasks" type="e4a08cd1:TasksNode" />
-                <item name="intellij platform" type="c8890929:TasksNode$1" />
               </path>
             </expand>
             <select />
@@ -147,7 +138,7 @@
     &quot;project.structure.last.edited&quot;: &quot;Modules&quot;,
     &quot;project.structure.proportion&quot;: &quot;0.0&quot;,
     &quot;project.structure.side.proportion&quot;: &quot;0.2&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;reference.projectsettings.compiler.javacompiler&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;preferences.pluginManager&quot;,
     &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
 }</component>
@@ -349,6 +340,8 @@
       <workItem from="1774322521753" duration="601000" />
       <workItem from="1775103193432" duration="576000" />
       <workItem from="1775103789074" duration="598000" />
+      <workItem from="1782353159603" duration="707000" />
+      <workItem from="1782460323733" duration="1517000" />
     </task>
     <task id="LOCAL-00001" summary="update">
       <option name="closed" value="true" />

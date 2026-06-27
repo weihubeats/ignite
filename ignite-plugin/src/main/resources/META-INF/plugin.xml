@@ -16,6 +16,12 @@
                 description="Run method via Arthas">
             <add-to-group group-id="EditorPopupMenu" anchor="first"/>
         </action>
+        <action id="IgniteRerun" class="com.ignite.action.IgniteRerunAction" text="Ignite Rerun Last"
+                description="Re-run the last Ignite method with previous parameters">
+            <add-to-group group-id="EditorPopupMenu" anchor="after" relative-to-action="IgniteRun"/>
+            <add-to-group group-id="RunMenu" anchor="last"/>
+            <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt shift E"/>
+        </action>
     </actions>
 
     <extensions defaultExtensionNs="com.intellij">

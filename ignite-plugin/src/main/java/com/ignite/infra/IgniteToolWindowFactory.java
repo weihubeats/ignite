@@ -2,25 +2,39 @@ package com.ignite.infra;
 
 import com.intellij.execution.filters.TextConsoleBuilderFactory;
 import com.intellij.execution.ui.ConsoleView;
+import com.intellij.openapi.actionSystem.ActionManager;
+import com.intellij.openapi.actionSystem.ActionToolbar;
+import com.intellij.openapi.actionSystem.DefaultActionGroup;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.wm.ToolWindow;
 import com.intellij.openapi.wm.ToolWindowFactory;
 import com.intellij.ui.content.Content;
+import com.intellij.ui.content.ContentFactory;
+import com.intellij.ui.content.ContentManager;
+import java.awt.BorderLayout;
+import javax.swing.JPanel;
 import org.jetbrains.annotations.NotNull;
 
 public class IgniteToolWindowFactory implements ToolWindowFactory {
 
     @Override
     public void createToolWindowContent(@NotNull Project project, @NotNull ToolWindow toolWindow) {
-        // 1. 创建原生的控制台视图
         ConsoleView consoleView = TextConsoleBuilderFactory.getInstance().createBuilder(project).getConsole();
 
-        // 2. 将控制台添加到工具窗口里
-        Content content = toolWindow.getContentManager().getFactory().createContent(consoleView.getComponent(), "", false);
-        toolWindow.getContentManager().addContent(content);
+        DefaultActionGroup toolbarGroup = new DefaultActionGroup();
+        toolbarGroup.add(ActionManager.getInstance().getAction("IgniteRerun"));
+        ActionToolbar toolbar = ActionManager.getInstance().createActionToolbar("IgniteConsoleToolbar", toolbarGroup, false);
+        toolbar.setTargetComponent(consoleView.getComponent());
 
-        // 3. 【关键】将创建好的 ConsoleView 塞给 Service
-        // 这样 Service 里的 print 方法就有地方输出了
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.add(toolbar.getComponent(), BorderLayout.NORTH);
+        panel.add(consoleView.getComponent(), BorderLayout.CENTER);
+
+        ContentManager contentManager = toolWindow.getContentManager();
+        ContentFactory contentFactory = contentManager.getFactory();
+        Content content = contentFactory.createContent(panel, "", false);
+        contentManager.addContent(content);
+
         IgniteConsoleService.getInstance(project).initConsoleView(consoleView);
     }
 }

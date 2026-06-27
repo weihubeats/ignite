@@ -1,6 +1,7 @@
 package com.ignite.infra;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ignite.core.JacksonSupport;
 import com.intellij.execution.ui.ConsoleView;
 import com.intellij.execution.ui.ConsoleViewContentType;
 import com.intellij.openapi.components.Service;
@@ -15,7 +16,7 @@ public final class IgniteConsoleService {
 
     public static final String TOOL_WINDOW_ID = "Ignite Console";
     private ConsoleView consoleView;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper = JacksonSupport.mapper();
     private final Project project;
 
     public IgniteConsoleService(Project project) {

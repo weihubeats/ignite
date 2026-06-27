@@ -14,7 +14,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class OgnlConverter {
 
-    private static final ObjectMapper mapper = new ObjectMapper();
+    private static final ObjectMapper mapper = JacksonSupport.mapper();
 
     public static String jsonToOgnl(String jsonArgs, PsiParameter[] parameters) {
         try {
@@ -119,7 +119,7 @@ public class OgnlConverter {
             if (className.startsWith("java.util.Map") || className.equals("java.util.HashMap")) {
                 String rawJsonString = node.toString();
                 String base64Json = Base64.getEncoder().encodeToString(rawJsonString.getBytes(StandardCharsets.UTF_8));
-                return String.format("(new com.fasterxml.jackson.databind.ObjectMapper()).readValue(new java.lang.String(@java.util.Base64@getDecoder().decode(\"%s\"), \"UTF-8\"), @java.util.HashMap@class)", base64Json);
+                return String.format("%s.readValue(new java.lang.String(@java.util.Base64@getDecoder().decode(\"%s\"), \"UTF-8\"), @java.util.HashMap@class)", JacksonSupport.OGNL_MAPPER, base64Json);
             }
 
             // 【核心】复杂嵌套 POJO 处理：Base64 编码原始 JSON -> 传过去 -> 解码还原 -> ObjectMapper 映射
@@ -132,7 +132,7 @@ public class OgnlConverter {
             String base64Json = Base64.getEncoder().encodeToString(rawJsonString.getBytes(StandardCharsets.UTF_8));
 
             // 生成的 OGNL 会类似于： mapper.readValue(new String(Base64.decode("ey..."), "UTF-8"), @YourClass@class)
-            return String.format("(new com.fasterxml.jackson.databind.ObjectMapper()).readValue(new java.lang.String(@java.util.Base64@getDecoder().decode(\"%s\"), \"UTF-8\"), @%s@class)", base64Json, className);
+            return String.format("%s.readValue(new java.lang.String(@java.util.Base64@getDecoder().decode(\"%s\"), \"UTF-8\"), @%s@class)", JacksonSupport.OGNL_MAPPER, base64Json, className);
         }
 
         return "null";

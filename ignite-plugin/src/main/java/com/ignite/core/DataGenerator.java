@@ -3,6 +3,7 @@ package com.ignite.core;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.ignite.core.JacksonSupport;
 import com.intellij.psi.PsiArrayType;
 import com.intellij.psi.PsiClass;
 import com.intellij.psi.PsiClassType;
@@ -15,6 +16,7 @@ import com.intellij.psi.PsiParameterList;
 import com.intellij.psi.PsiType;
 import com.intellij.psi.util.PsiTypesUtil;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -28,7 +30,7 @@ import net.datafaker.Faker;
 public class DataGenerator {
 
     private static final Faker faker = new Faker(Locale.CHINA);
-    private static final ObjectMapper mapper = new ObjectMapper();
+    private static final ObjectMapper mapper = JacksonSupport.mapper();
 
     public static String generateMethodArgsJson(PsiMethod method) {
         ObjectNode jsonObject = mapper.createObjectNode();
@@ -89,6 +91,8 @@ public class DataGenerator {
             node.put(key, LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
         } else if (typeName.equals("java.time.LocalTime")) {
             node.put(key, java.time.LocalTime.now().format(DateTimeFormatter.ISO_LOCAL_TIME));
+        } else if (typeName.equals("java.time.Instant")) {
+            node.put(key, Instant.now().toString());
         }
         // BigDecimal
         else if (typeName.equals("java.math.BigDecimal")) {

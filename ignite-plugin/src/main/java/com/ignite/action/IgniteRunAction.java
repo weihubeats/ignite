@@ -1,13 +1,12 @@
 package com.ignite.action;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
-import com.ignite.core.CommandBuilder;
 import com.ignite.core.DataGenerator;
-import com.ignite.core.OgnlConverter;
-import com.ignite.infra.ArthasController;
-import com.ignite.infra.IgniteConsoleService;
+import com.ignite.core.IgniteMethodExecutor;
+import com.ignite.core.JacksonSupport;
+import com.ignite.infra.IgniteLastRunService;
+import com.ignite.infra.LastRunRecord;
 import com.ignite.infra.PidUtils;
 import com.intellij.ide.util.PropertiesComponent;
 import com.intellij.lang.Language;
@@ -17,14 +16,8 @@ import com.intellij.notification.Notifications;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
-import com.intellij.openapi.application.ApplicationManager;
-import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.editor.Document;
-import com.intellij.openapi.fileEditor.FileEditorManager;
-import com.intellij.openapi.fileEditor.OpenFileDescriptor;
-import com.intellij.openapi.progress.ProgressIndicator;
-import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.ComboBox;
 import com.intellij.openapi.ui.DialogWrapper;
@@ -33,16 +26,11 @@ import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiMethod;
 
 import com.intellij.psi.codeStyle.CodeStyleManager;
-import com.intellij.testFramework.LightVirtualFile;
 import com.intellij.ui.LanguageTextField;
 import com.intellij.ui.components.JBScrollPane;
-import com.intellij.ui.components.JBTextArea;
 import com.intellij.util.ui.JBUI;
 import java.awt.BorderLayout;
-import java.awt.Dimension;
-import java.awt.Font;
 import java.util.List;
-import javax.swing.Action;
 import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
@@ -98,109 +86,27 @@ public class IgniteRunAction extends AnAction {
         // 3. 【参数记忆】保存本次运行的参数
         PropertiesComponent.getInstance(project).setValue(cacheKey, jsonArgs);
 
-        // 4. 异步执行
-        new Task.Backgroundable(project, "Ignite: " + method.getName(), true) {
-            @Override
-            public void run(@NotNull ProgressIndicator indicator) {
-                IgniteConsoleService console = IgniteConsoleService.getInstance(project);
-                try {
-                    // 检查连接状态，如果需要则重新 attach
-                    indicator.setText("检查连接状态...");
-                    console.printLog("[Ignite] 检查 Arthas 连接状态...");
+        // 4. 记录最近一次运行，供 Ignite Rerun Last 一键重跑
+        String className = method.getContainingClass() != null
+            ? method.getContainingClass().getQualifiedName()
+            : "Unknown";
+        IgniteLastRunService.getInstance(project).save(new LastRunRecord(
+            className,
+            method.getName(),
+            method.getParameterList().getParametersCount(),
+            jsonArgs,
+            selectedApp.pid,
+            selectedApp.displayName
+        ));
 
-                    if (!ArthasController.isArthasConnected(selectedApp.pid)) {
-                        indicator.setText("连接到 " + selectedApp.displayName + "...");
-                        console.printLog("[Ignite] 连接到 " + selectedApp.displayName + " (PID: " + selectedApp.pid + ")");
-                        ArthasController.attach(selectedApp.pid, console);
-                    } else {
-                        console.printLog("[Ignite] Arthas 已连接，直接使用现有连接");
-                    }
-
-                    indicator.setText("构建指令...");
-                    console.printLog("[Ignite] 构建 OGNL 指令...");
-                    String arthasLibPath = ArthasController.getArthasLibPath();
-                    // 在后台线程构建命令，避免阻塞 EDT
-                    String[] commandAndOgnl = ReadAction.nonBlocking(() -> {
-                        com.intellij.psi.PsiParameter[] parameters = method.getParameterList().getParameters();
-                        String ognlArgs = OgnlConverter.jsonToOgnl(jsonArgs, parameters);
-                        String cmd = CommandBuilder.build(method, ognlArgs, arthasLibPath);
-                        StringBuilder paramNames = new StringBuilder();
-                        for (int i = 0; i < parameters.length; i++) {
-                            if (i > 0) paramNames.append(", ");
-                            paramNames.append(parameters[i].getName());
-                        }
-                        return new String[]{ cmd, "params=[" + paramNames + "] ognlArgs=" + ognlArgs };
-                    }).executeSynchronously();
-                    String command = commandAndOgnl[0];
-                    console.printLog("[Ignite] " + commandAndOgnl[1]);
-                    console.printLog("[Ignite] 指令: " + command);
-
-                    indicator.setText("执行中...");
-                    console.printLog("[Ignite] 发送命令到 Arthas...");
-                    ArthasController.sendCommandWithoutResult(command);
-                    console.printLog("[Ignite] 命令已发送（不等待方法返回结果）");
-
-                    // 如果执行失败且是连接问题，尝试重新 attach 后重试一次
-                    if (!ArthasController.isArthasConnected(selectedApp.pid)) {
-                        indicator.setText("连接断开，重新连接...");
-                        console.printLog("[Ignite] 连接断开，尝试重新 attach...");
-                        ArthasController.attach(selectedApp.pid, console);
-                        ArthasController.sendCommandWithoutResult(command);
-                        console.printLog("[Ignite] 重试完成");
-                    }
-
-                    // 在 ReadAction 中获取方法信息（后台线程安全）
-                    String methodSig = ReadAction.nonBlocking(() -> {
-                        String className = method.getContainingClass() != null ? method.getContainingClass().getQualifiedName() : "UnknownClass";
-                        return className + "." + method.getName();
-                    }).executeSynchronously();
-
-                    // 调用打印方法
-                    ApplicationManager.getApplication().invokeLater(() -> {
-                        console.printExecution(
-                            selectedApp.displayName,
-                            methodSig,
-                            jsonArgs
-                        );
-                    });
-
-                } catch (Exception ex) {
-                    ApplicationManager.getApplication().invokeLater(() -> {
-                        String msg = ex.getMessage();
-                        // 针对 Debug 超时的友好提示
-                        if (msg != null && (msg.contains("Read timed out") || msg.contains("timeout"))) {
-                            msg += "\n\n【提示】: 检测到超时。如果当前处于 Debug 断点暂停状态，Arthas 无法执行代码。请 Resume 放行断点后再试。";
-                        }
-                        showNotification(project, "执行失败: " + msg, NotificationType.ERROR);
-                    });
-                }
-            }
-        }.queue();
+        // 5. 异步执行
+        IgniteMethodExecutor.execute(project, method, jsonArgs, selectedApp);
     }
 
     // 生成唯一的缓存 Key: 包名.类名.方法名(参数个数)
     private String getCacheKey(PsiMethod method) {
         String className = method.getContainingClass() != null ? method.getContainingClass().getQualifiedName() : "Unknown";
         return HISTORY_KEY_PREFIX + className + "." + method.getName() + "_" + method.getParameterList().getParametersCount();
-    }
-
-    // 在编辑器中打开结果 (JSON 高亮)
-    private void openResultInEditor(Project project, String appName, String methodName, String content) {
-        // 创建一个内存中的虚拟文件
-        String fileName = "Ignite_Result_" + methodName + ".json";
-        LightVirtualFile virtualFile = new LightVirtualFile(fileName, content);
-
-        // 尝试设置语言为 JSON 以获得高亮
-        Language jsonLang = Language.findLanguageByID("JSON");
-        if (jsonLang != null) {
-            virtualFile.setLanguage(jsonLang);
-        }
-
-        // 打开文件
-        FileEditorManager.getInstance(project).openTextEditor(new OpenFileDescriptor(project, virtualFile), true);
-
-        // 发个轻量通知告知用户
-        showNotification(project, "执行成功，结果已在编辑器打开", NotificationType.INFORMATION);
     }
 
     private static class IgniteDialog extends DialogWrapper {
@@ -279,7 +185,7 @@ public class IgniteRunAction extends AnAction {
                 return;
             }
             try {
-                ObjectMapper mapper = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
+                var mapper = JacksonSupport.createMapper().enable(SerializationFeature.INDENT_OUTPUT);
                 JsonNode node = mapper.readTree(text);
                 String formatted = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(node);
                 jsonEditor.setText(formatted);
