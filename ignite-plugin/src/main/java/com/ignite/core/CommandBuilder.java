@@ -10,6 +10,8 @@ import com.intellij.psi.PsiType;
 
 public class CommandBuilder {
 
+    private static final String SPRING_APPLICATION_CONTEXT = "org.springframework.context.ApplicationContext";
+
     /**
      * @param arthasLibPath Arthas lib 目录路径，供 vmtool 的 --libPath 使用；可为 null（如静态方法走 ognl 时）
      */
@@ -26,25 +28,55 @@ public class CommandBuilder {
             return String.format("ognl '@%s@%s(%s)' -x 3", className, methodName, ognlArgs);
         }
 
-        // 2. 实例方法：Spring getBean 与堆实例合并为一条命令，private 方法走反射
+        // 2. 实例方法：从堆上 ApplicationContext 取 Bean（兼容 Spring Boot / JDK 动态代理）
         return buildVmtoolCommand(
-            className,
-            buildUnifiedInstanceExpress(className, method, ognlArgs),
+            SPRING_APPLICATION_CONTEXT,
+            buildUnifiedInstanceExpress(containingClass, method, ognlArgs),
             arthasLibPath,
-            3
+            5
         );
     }
 
-    private static String buildUnifiedInstanceExpress(String className, PsiMethod method, String ognlArgs) {
-        String resolveBean = String.format(
-            "#heap=(instances.length > 0 ? instances[0] : null), "
-                + "#ctx=@org.springframework.web.context.ContextLoader@getCurrentWebApplicationContext(), "
-                + "#spring=(#ctx != null ? #ctx.getBean(@%s@class) : null), "
-                + "#bean=(#spring != null ? #spring : #heap)",
-            className
-        );
+    private static String buildUnifiedInstanceExpress(PsiClass containingClass, PsiMethod method, String ognlArgs) {
+        String className = containingClass.getQualifiedName();
+        String interfaceName = resolveServiceInterface(containingClass, method);
+
+        // Spring Boot 无 ContextLoader；Service 有接口时运行时是 JDK 代理，堆上找不到 Impl 实例
+        String resolveBean;
+        if (interfaceName != null && !interfaceName.equals(className)) {
+            resolveBean = String.format(
+                "#ctx=(instances.length > 0 ? instances[0] : @org.springframework.web.context.ContextLoader@getCurrentWebApplicationContext()), "
+                    + "#bean=(#ctx != null ? #ctx.getBean(@%s@class) : null), "
+                    + "#bean=(#bean != null ? #bean : (#ctx != null ? #ctx.getBean(@%s@class) : null))",
+                className,
+                interfaceName
+            );
+        } else {
+            resolveBean = String.format(
+                "#ctx=(instances.length > 0 ? instances[0] : @org.springframework.web.context.ContextLoader@getCurrentWebApplicationContext()), "
+                    + "#bean=(#ctx != null ? #ctx.getBean(@%s@class) : null)",
+                className
+            );
+        }
+
         String invoke = buildInvokeExpress(className, method, ognlArgs);
         return String.format("(%s, #bean == null ? \"[Ignite] 未找到 Bean 实例\" : %s)", resolveBean, invoke);
+    }
+
+    private static String resolveServiceInterface(PsiClass containingClass, PsiMethod method) {
+        if (containingClass.isInterface()) {
+            return containingClass.getQualifiedName();
+        }
+        for (PsiClass iface : containingClass.getInterfaces()) {
+            if (iface.findMethodBySignature(method, false) != null) {
+                return iface.getQualifiedName();
+            }
+        }
+        PsiClass[] interfaces = containingClass.getInterfaces();
+        if (interfaces.length > 0) {
+            return interfaces[0].getQualifiedName();
+        }
+        return null;
     }
 
     private static String buildInvokeExpress(String className, PsiMethod method, String ognlArgs) {

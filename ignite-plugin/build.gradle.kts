@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "io.github.weihubeats"
-version = "1.0.7"
+version = "1.0.8"
 
 java {
     sourceCompatibility = JavaVersion.VERSION_17
@@ -48,6 +48,11 @@ intellijPlatform {
         description = file("src/main/resources/META-INF/description.html").readText()
 
         changeNotes = """
+            Version 1.0.8:
+            - Fix Spring @Service invocation via ApplicationContext (Spring Boot compatible)
+            - Support JDK dynamic proxy beans (getBean by interface fallback)
+            - Async Arthas commands wait for acceptance before disconnect
+            
             Version 1.0.6:
             - Fixed instance method invocation for Spring Beans and MQ Consumers
             - Private/protected methods now use getDeclaredMethod + setAccessible

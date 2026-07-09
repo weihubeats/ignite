@@ -498,8 +498,13 @@ public class ArthasController {
                 throw new IOException("未能获取 Arthas 提示符");
             }
 
-            out.println(command);
+            String asyncCommand = toAsyncCommand(command);
+            out.println(asyncCommand);
             out.flush();
+
+            // 等待 Arthas 受理后台命令后再断开，避免命令未执行就终止输出流
+            readUntilPrompt(reader);
+
             telnet.disconnect();
         } catch (Exception e) {
             if (remainingAttempts > 1 && isConnectionRefused(e)) {
@@ -514,6 +519,14 @@ public class ArthasController {
             }
             throw new RuntimeException("通信失败: " + e.getMessage(), e);
         }
+    }
+
+    private static String toAsyncCommand(String command) {
+        String trimmed = command.stripTrailing();
+        if (trimmed.endsWith("&")) {
+            return trimmed;
+        }
+        return trimmed + " &";
     }
 
     /**
