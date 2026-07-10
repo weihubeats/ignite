@@ -30,6 +30,7 @@ import com.intellij.ui.LanguageTextField;
 import com.intellij.ui.components.JBScrollPane;
 import com.intellij.util.ui.JBUI;
 import java.awt.BorderLayout;
+import java.awt.FlowLayout;
 import java.util.List;
 import javax.swing.JButton;
 import javax.swing.JComponent;
@@ -75,7 +76,7 @@ public class IgniteRunAction extends AnAction {
         }
 
         // 2. 弹出窗口
-        IgniteDialog dialog = new IgniteDialog(project, method.getName(), initialJson, runningApps);
+        IgniteDialog dialog = new IgniteDialog(project, method, initialJson, runningApps);
         if (!dialog.showAndGet())
             return;
 
@@ -111,17 +112,19 @@ public class IgniteRunAction extends AnAction {
 
     private static class IgniteDialog extends DialogWrapper {
         private final Project project;
+        private final PsiMethod method;
         private final List<PidUtils.RunningApp> apps;
         private ComboBox<PidUtils.RunningApp> appComboBox;
         private LanguageTextField jsonEditor;
         private final String defaultJson;
 
-        protected IgniteDialog(Project project, String methodName, String defaultJson, List<PidUtils.RunningApp> apps) {
+        protected IgniteDialog(Project project, PsiMethod method, String defaultJson, List<PidUtils.RunningApp> apps) {
             super(project, true); // true = canBeParent
             this.project = project;
+            this.method = method;
             this.apps = apps;
             this.defaultJson = defaultJson;
-            setTitle("Ignite Run - " + methodName);
+            setTitle("Ignite Run - " + method.getName());
             setResizable(true); // 【窗口优化】允许调整大小
             init();
         }
@@ -158,9 +161,14 @@ public class IgniteRunAction extends AnAction {
             JPanel editorPanel = new JPanel(new BorderLayout());
             JPanel labelRow = new JPanel(new BorderLayout());
             labelRow.add(new JLabel("入参 (JSON):"), BorderLayout.WEST);
+            JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, JBUI.scale(8), 0));
+            JButton randomParamsButton = new JButton("随机生成参数");
+            randomParamsButton.addActionListener(ev -> generateRandomParams());
             JButton formatJsonButton = new JButton("格式化 JSON");
             formatJsonButton.addActionListener(ev -> formatJsonInDialog());
-            labelRow.add(formatJsonButton, BorderLayout.EAST);
+            buttonPanel.add(randomParamsButton);
+            buttonPanel.add(formatJsonButton);
+            labelRow.add(buttonPanel, BorderLayout.EAST);
             editorPanel.add(labelRow, BorderLayout.NORTH);
             editorPanel.add(scrollPane, BorderLayout.CENTER);
 
@@ -175,6 +183,18 @@ public class IgniteRunAction extends AnAction {
                 if (file != null)
                     CodeStyleManager.getInstance(project).reformat(file);
             });
+        }
+
+        /** 根据方法签名随机生成入参 JSON（用于「随机生成参数」按钮） */
+        private void generateRandomParams() {
+            try {
+                String randomJson = DataGenerator.generateMethodArgsJson(method);
+                jsonEditor.setText(randomJson);
+                formatJson(jsonEditor.getDocument(), project);
+                showDialogNotification(project, "已生成随机参数", NotificationType.INFORMATION);
+            } catch (Exception ex) {
+                showDialogNotification(project, "生成随机参数失败: " + ex.getMessage(), NotificationType.ERROR);
+            }
         }
 
         /** 格式化入参 JSON 文本框内容（用于「格式化 JSON」按钮） */

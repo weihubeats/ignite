@@ -3,7 +3,6 @@ package com.ignite.core;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.ignite.core.JacksonSupport;
 import com.intellij.psi.PsiArrayType;
 import com.intellij.psi.PsiClass;
 import com.intellij.psi.PsiClassType;
@@ -14,15 +13,15 @@ import com.intellij.psi.PsiModifier;
 import com.intellij.psi.PsiParameter;
 import com.intellij.psi.PsiParameterList;
 import com.intellij.psi.PsiType;
-import com.intellij.psi.util.PsiTypesUtil;
-import java.math.BigDecimal;
+import com.intellij.psi.PsiTypeParameter;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Date;
-import java.util.List;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import net.datafaker.Faker;
@@ -31,6 +30,9 @@ public class DataGenerator {
 
     private static final Faker faker = new Faker(Locale.CHINA);
     private static final ObjectMapper mapper = JacksonSupport.mapper();
+    private static final Set<String> OBJECT_METHODS = Set.of(
+        "hashCode", "toString", "getClass", "notify", "notifyAll", "wait"
+    );
 
     public static String generateMethodArgsJson(PsiMethod method) {
         ObjectNode jsonObject = mapper.createObjectNode();
@@ -44,22 +46,27 @@ public class DataGenerator {
         for (PsiParameter parameter : parameterList.getParameters()) {
             String paramName = parameter.getName();
             PsiType type = parameter.getType();
-            addMockValue(jsonObject, paramName, type, 0);
+            addMockValue(jsonObject, paramName, type, 0, Map.of());
         }
 
         return jsonObject.toPrettyString();
     }
 
-    private static void addMockValue(ObjectNode node, String key, PsiType type, int depth) {
-        // 防止递归过深
+    private static void addMockValue(
+        ObjectNode node,
+        String key,
+        PsiType type,
+        int depth,
+        Map<String, PsiType> typeMap
+    ) {
         if (depth > 3) {
             node.putNull(key);
             return;
         }
 
-        String typeName = type.getCanonicalText();
+        PsiType resolvedType = resolveType(type, typeMap);
+        String typeName = resolvedType.getCanonicalText();
 
-        // 基础类型
         if (typeName.equals("int") || typeName.equals("java.lang.Integer")) {
             node.put(key, faker.number().numberBetween(1, 100));
         } else if (typeName.equals("long") || typeName.equals("java.lang.Long")) {
@@ -76,13 +83,9 @@ public class DataGenerator {
             node.put(key, faker.number().numberBetween(-32768, 32767));
         } else if (typeName.equals("char") || typeName.equals("java.lang.Character")) {
             node.put(key, faker.lorem().characters(1));
-        }
-        // 字符串类型
-        else if (typeName.equals("java.lang.String")) {
+        } else if (typeName.equals("java.lang.String")) {
             node.put(key, faker.name().fullName());
-        }
-        // 日期时间类型
-        else if (typeName.equals("java.util.Date")) {
+        } else if (typeName.equals("java.util.Date")) {
             Date date = faker.date().birthday();
             node.put(key, date.getTime());
         } else if (typeName.equals("java.time.LocalDate")) {
@@ -93,93 +96,70 @@ public class DataGenerator {
             node.put(key, java.time.LocalTime.now().format(DateTimeFormatter.ISO_LOCAL_TIME));
         } else if (typeName.equals("java.time.Instant")) {
             node.put(key, Instant.now().toString());
-        }
-        // BigDecimal
-        else if (typeName.equals("java.math.BigDecimal")) {
+        } else if (typeName.equals("java.math.BigDecimal")) {
             node.put(key, faker.number().randomDouble(2, 1, 1000000));
-        }
-        // UUID
-        else if (typeName.equals("java.util.UUID")) {
+        } else if (typeName.equals("java.util.UUID")) {
             node.put(key, UUID.randomUUID().toString());
-        }
-        // 数组类型
-        else if (type instanceof PsiArrayType) {
-            ArrayNode arrayNode = node.putArray(key);
-            PsiType componentType = ((PsiArrayType) type).getComponentType();
-            // 生成 1-3 个元素
-            int size = faker.number().numberBetween(1, 4);
-            for (int i = 0; i < size; i++) {
-                ObjectNode elementNode = mapper.createObjectNode();
-                addMockValueToArrayElement(arrayNode, componentType, depth + 1);
-            }
-        }
-        // List 类型
-        else if (typeName.startsWith("java.util.List") || typeName.startsWith("java.util.Collection")) {
-            ArrayNode arrayNode = node.putArray(key);
-            if (type instanceof PsiClassType) {
-                PsiType[] parameters = ((PsiClassType) type).getParameters();
+        } else if (typeName.startsWith("java.util.Optional")) {
+            if (resolvedType instanceof PsiClassType optionalType) {
+                PsiType[] parameters = optionalType.getParameters();
                 if (parameters.length > 0) {
-                    PsiType genericType = parameters[0];
-                    int size = faker.number().numberBetween(1, 4);
-                    for (int i = 0; i < size; i++) {
-                        addMockValueToArrayElement(arrayNode, genericType, depth + 1);
-                    }
-                }
-            }
-        }
-        // Set 类型
-        else if (typeName.startsWith("java.util.Set")) {
-            ArrayNode arrayNode = node.putArray(key);
-            if (type instanceof PsiClassType) {
-                PsiType[] parameters = ((PsiClassType) type).getParameters();
-                if (parameters.length > 0) {
-                    PsiType genericType = parameters[0];
-                    int size = faker.number().numberBetween(1, 4);
-                    for (int i = 0; i < size; i++) {
-                        addMockValueToArrayElement(arrayNode, genericType, depth + 1);
-                    }
-                }
-            }
-        }
-        // Map 类型
-        else if (typeName.startsWith("java.util.Map")) {
-            ObjectNode mapNode = node.putObject(key);
-            if (type instanceof PsiClassType) {
-                PsiType[] parameters = ((PsiClassType) type).getParameters();
-                if (parameters.length >= 2) {
-                    // 生成 1-2 个随机的 key-value
-                    int size = faker.number().numberBetween(1, 3);
-                    for (int i = 0; i < size; i++) {
-                        String mapKey = "key" + i;
-                        addMockValue(mapNode, mapKey, parameters[1], depth + 1);
-                    }
-                }
-            }
-        }
-        // 枚举类型
-        else if (type instanceof PsiClassType) {
-            PsiClass psiClass = ((PsiClassType) type).resolve();
-            if (psiClass != null && psiClass.isEnum()) {
-                PsiField[] enumConstants = psiClass.getFields();
-                if (enumConstants.length > 0) {
-                    // 随机选择一个枚举值
-                    int index = faker.number().numberBetween(0, enumConstants.length);
-                    for (int i = 0; i < enumConstants.length; i++) {
-                        if (enumConstants[i] instanceof PsiEnumConstant) {
-                            if (i == index) {
-                                node.put(key, enumConstants[i].getName());
-                                break;
-                            }
-                        }
-                    }
+                    addMockValue(node, key, parameters[0], depth + 1, typeMap);
                 } else {
                     node.putNull(key);
                 }
+            } else {
+                node.putNull(key);
             }
-            // 普通对象类型 - 递归生成
-            else if (psiClass != null) {
+        } else if (resolvedType instanceof PsiArrayType arrayType) {
+            ArrayNode arrayNode = node.putArray(key);
+            int size = faker.number().numberBetween(1, 4);
+            for (int i = 0; i < size; i++) {
+                addMockValueToArrayElement(arrayNode, arrayType.getComponentType(), depth + 1, typeMap);
+            }
+        } else if (typeName.startsWith("java.util.List") || typeName.startsWith("java.util.Collection")) {
+            ArrayNode arrayNode = node.putArray(key);
+            if (resolvedType instanceof PsiClassType classType) {
+                PsiType[] parameters = classType.getParameters();
+                if (parameters.length > 0) {
+                    int size = faker.number().numberBetween(1, 4);
+                    for (int i = 0; i < size; i++) {
+                        addMockValueToArrayElement(arrayNode, parameters[0], depth + 1, typeMap);
+                    }
+                }
+            }
+        } else if (typeName.startsWith("java.util.Set")) {
+            ArrayNode arrayNode = node.putArray(key);
+            if (resolvedType instanceof PsiClassType classType) {
+                PsiType[] parameters = classType.getParameters();
+                if (parameters.length > 0) {
+                    int size = faker.number().numberBetween(1, 4);
+                    for (int i = 0; i < size; i++) {
+                        addMockValueToArrayElement(arrayNode, parameters[0], depth + 1, typeMap);
+                    }
+                }
+            }
+        } else if (typeName.startsWith("java.util.Map")) {
+            ObjectNode mapNode = node.putObject(key);
+            if (resolvedType instanceof PsiClassType classType) {
+                PsiType[] parameters = classType.getParameters();
+                if (parameters.length >= 2) {
+                    int size = faker.number().numberBetween(1, 3);
+                    for (int i = 0; i < size; i++) {
+                        addMockValue(mapNode, "key" + i, parameters[1], depth + 1, typeMap);
+                    }
+                }
+            }
+        } else if (resolvedType instanceof PsiClassType classType) {
+            PsiClass psiClass = classType.resolve();
+            if (psiClass != null && psiClass.isEnum()) {
+                addEnumValue(node, key, psiClass);
+            } else if (psiClass != null && psiClass.isInterface()) {
+                node.putNull(key);
+            } else if (psiClass != null) {
                 ObjectNode objectNode = node.putObject(key);
-                generateObjectFields(objectNode, psiClass, depth + 1);
+                Map<String, PsiType> mergedTypeMap = mergeTypeMap(psiClass, classType, typeMap);
+                generateObjectProperties(objectNode, psiClass, mergedTypeMap, depth + 1);
             } else {
                 node.putNull(key);
             }
@@ -188,8 +168,14 @@ public class DataGenerator {
         }
     }
 
-    private static void addMockValueToArrayElement(ArrayNode arrayNode, PsiType type, int depth) {
-        String typeName = type.getCanonicalText();
+    private static void addMockValueToArrayElement(
+        ArrayNode arrayNode,
+        PsiType type,
+        int depth,
+        Map<String, PsiType> typeMap
+    ) {
+        PsiType resolvedType = resolveType(type, typeMap);
+        String typeName = resolvedType.getCanonicalText();
 
         if (typeName.equals("int") || typeName.equals("java.lang.Integer")) {
             arrayNode.add(faker.number().numberBetween(1, 100));
@@ -201,11 +187,16 @@ public class DataGenerator {
             arrayNode.add(faker.bool().bool());
         } else if (typeName.equals("java.lang.String")) {
             arrayNode.add(faker.lorem().word());
-        } else if (type instanceof PsiClassType) {
-            PsiClass psiClass = ((PsiClassType) type).resolve();
-            if (psiClass != null && !psiClass.isEnum()) {
+        } else if (resolvedType instanceof PsiClassType classType) {
+            PsiClass psiClass = classType.resolve();
+            if (psiClass != null && psiClass.isEnum()) {
+                ObjectNode enumHolder = mapper.createObjectNode();
+                addEnumValue(enumHolder, "value", psiClass);
+                arrayNode.add(enumHolder.get("value"));
+            } else if (psiClass != null && !psiClass.isInterface()) {
                 ObjectNode elementNode = mapper.createObjectNode();
-                generateObjectFields(elementNode, psiClass, depth);
+                Map<String, PsiType> mergedTypeMap = mergeTypeMap(psiClass, classType, typeMap);
+                generateObjectProperties(elementNode, psiClass, mergedTypeMap, depth);
                 arrayNode.add(elementNode);
             } else {
                 arrayNode.addNull();
@@ -215,25 +206,196 @@ public class DataGenerator {
         }
     }
 
-    private static void generateObjectFields(ObjectNode node, PsiClass psiClass, int depth) {
-        if (depth > 3) return;
+    /**
+     * 按优先级为对象生成属性：公开构造器参数 > 公开 getter > 非 static 实例字段。
+     * 解决 immutable 类（如 ConsumerRecord 全 final 字段）和仅有 accessor 方法的类。
+     */
+    private static void generateObjectProperties(
+        ObjectNode node,
+        PsiClass psiClass,
+        Map<String, PsiType> typeMap,
+        int depth
+    ) {
+        if (depth > 3) {
+            return;
+        }
 
-        // 获取所有字段（包括父类）
-        PsiField[] fields = psiClass.getAllFields();
-        int fieldCount = 0;
-        for (PsiField field : fields) {
-            // 跳过静态字段和常量
-            if (field.hasModifierProperty(PsiModifier.STATIC) ||
-                field.hasModifierProperty(PsiModifier.FINAL)) {
+        if (generateFromConstructor(node, psiClass, typeMap, depth)) {
+            return;
+        }
+        if (generateFromGetters(node, psiClass, typeMap, depth)) {
+            return;
+        }
+        generateFromFields(node, psiClass, typeMap, depth);
+    }
+
+    private static boolean generateFromConstructor(
+        ObjectNode node,
+        PsiClass psiClass,
+        Map<String, PsiType> typeMap,
+        int depth
+    ) {
+        PsiMethod bestConstructor = findShortestPublicConstructor(psiClass);
+        if (bestConstructor == null) {
+            return false;
+        }
+
+        int count = 0;
+        for (PsiParameter parameter : bestConstructor.getParameterList().getParameters()) {
+            if (count++ >= 10) {
+                break;
+            }
+            String paramName = parameter.getName();
+            PsiType paramType = resolveType(parameter.getType(), typeMap);
+            addMockValue(node, paramName, paramType, depth, typeMap);
+        }
+        return count > 0;
+    }
+
+    private static boolean generateFromGetters(
+        ObjectNode node,
+        PsiClass psiClass,
+        Map<String, PsiType> typeMap,
+        int depth
+    ) {
+        int count = 0;
+        for (PsiMethod method : psiClass.getMethods()) {
+            if (!isReadableAccessor(method)) {
                 continue;
             }
 
-            // 只生成前 10 个字段，避免对象过大
-            if (fieldCount++ >= 10) break;
+            String propertyName = accessorPropertyName(method.getName());
+            if (propertyName == null || node.has(propertyName)) {
+                continue;
+            }
+
+            if (count++ >= 10) {
+                break;
+            }
+
+            PsiType returnType = resolveType(method.getReturnType(), typeMap);
+            if (returnType == null) {
+                continue;
+            }
+            addMockValue(node, propertyName, returnType, depth, typeMap);
+        }
+        return count > 0;
+    }
+
+    private static void generateFromFields(
+        ObjectNode node,
+        PsiClass psiClass,
+        Map<String, PsiType> typeMap,
+        int depth
+    ) {
+        int count = 0;
+        for (PsiField field : psiClass.getAllFields()) {
+            if (field.hasModifierProperty(PsiModifier.STATIC)) {
+                continue;
+            }
+            if (field.hasModifierProperty(PsiModifier.TRANSIENT)) {
+                continue;
+            }
+
+            if (count++ >= 10) {
+                break;
+            }
 
             String fieldName = field.getName();
-            PsiType fieldType = field.getType();
-            addMockValue(node, fieldName, fieldType, depth);
+            PsiType fieldType = resolveType(field.getType(), typeMap);
+            addMockValue(node, fieldName, fieldType, depth, typeMap);
         }
+    }
+
+    private static PsiMethod findShortestPublicConstructor(PsiClass psiClass) {
+        PsiMethod best = null;
+        int bestParamCount = Integer.MAX_VALUE;
+        for (PsiMethod constructor : psiClass.getConstructors()) {
+            if (!constructor.hasModifierProperty(PsiModifier.PUBLIC)) {
+                continue;
+            }
+            int paramCount = constructor.getParameterList().getParametersCount();
+            if (paramCount == 0 || paramCount >= bestParamCount) {
+                continue;
+            }
+            bestParamCount = paramCount;
+            best = constructor;
+        }
+        return best;
+    }
+
+    private static boolean isReadableAccessor(PsiMethod method) {
+        if (!method.hasModifierProperty(PsiModifier.PUBLIC)) {
+            return false;
+        }
+        if (method.hasModifierProperty(PsiModifier.STATIC)) {
+            return false;
+        }
+        if (method.isConstructor()) {
+            return false;
+        }
+        if (method.getParameterList().getParametersCount() != 0) {
+            return false;
+        }
+        PsiType returnType = method.getReturnType();
+        if (returnType == null || PsiType.VOID.equals(returnType)) {
+            return false;
+        }
+        return !OBJECT_METHODS.contains(method.getName());
+    }
+
+    private static String accessorPropertyName(String methodName) {
+        if (methodName.startsWith("get") && methodName.length() > 3) {
+            return Character.toLowerCase(methodName.charAt(3)) + methodName.substring(4);
+        }
+        if (methodName.startsWith("is") && methodName.length() > 2) {
+            return Character.toLowerCase(methodName.charAt(2)) + methodName.substring(3);
+        }
+        if (methodName.startsWith("set") || methodName.startsWith("with")) {
+            return null;
+        }
+        return methodName;
+    }
+
+    private static void addEnumValue(ObjectNode node, String key, PsiClass psiClass) {
+        PsiField[] enumConstants = psiClass.getFields();
+        if (enumConstants.length == 0) {
+            node.putNull(key);
+            return;
+        }
+
+        int index = faker.number().numberBetween(0, enumConstants.length);
+        for (int i = 0; i < enumConstants.length; i++) {
+            if (enumConstants[i] instanceof PsiEnumConstant && i == index) {
+                node.put(key, enumConstants[i].getName());
+                return;
+            }
+        }
+        node.putNull(key);
+    }
+
+    private static Map<String, PsiType> mergeTypeMap(
+        PsiClass psiClass,
+        PsiClassType classType,
+        Map<String, PsiType> parentTypeMap
+    ) {
+        Map<String, PsiType> merged = new HashMap<>(parentTypeMap);
+        PsiTypeParameter[] typeParameters = psiClass.getTypeParameters();
+        PsiType[] actualTypes = classType.getParameters();
+        for (int i = 0; i < typeParameters.length && i < actualTypes.length; i++) {
+            merged.put(typeParameters[i].getName(), actualTypes[i]);
+        }
+        return merged;
+    }
+
+    private static PsiType resolveType(PsiType type, Map<String, PsiType> typeMap) {
+        if (type instanceof PsiClassType classType && classType.resolve() == null) {
+            String typeName = type.getCanonicalText();
+            PsiType mapped = typeMap.get(typeName);
+            if (mapped != null) {
+                return mapped;
+            }
+        }
+        return type;
     }
 }
