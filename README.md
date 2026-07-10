@@ -1,9 +1,8 @@
 🚀 Ignite Plugin - IntelliJ Arthas Integration
 ==============================================
 
-**Ignite** 是一款专为 IntelliJ IDEA 设计的开发效能插件。它深度集成了 [Arthas](https://arthas.aliyun.com/)，让你无需离开 IDE，无需手动输入复杂的命令行，即可通过右键菜单直接调用运行中进程（Spring Boot/Java 应用）的任意方法。
+**Ignite** 是一款专为 IntelliJ IDEA 设计的开发效能插件。通过右键菜单直接调用运行中进程（Spring Boot/Java 应用）的任意方法。
 
-它就像是给你的本地代码和运行中服务架起了一座**所见即所得**的桥梁。
 
 * * *
 
@@ -28,43 +27,25 @@
 
     *   **参数记忆功能**：自动保存上次成功运行的参数，拒绝重复输入。
 
-*   **📊 专业级控制台报告 (Dedicated Console)**
-
-    *   拥有专属的底部工具窗口 `Ignite Console`。
-
-    *   输出像 Postman 一样的执行报告：包含调用时间、目标服务、美化后的入参 JSON 和返回值 JSON。
-
-    *   支持一键清空日志。
-
-*   **🤖 自动化 Arthas 注入**
-
-    *   全自动检测并 Attach 目标进程，无需手动下载或启动 Arthas。
-
-    *   首次运行自动下载，后续运行毫秒级响应。
-
-    *   支持中文参数，自动转义处理，杜绝乱码。
-
 * * *
 
 📸 截图预览 (Screenshots)
 ---------------------
 
-> _（建议在此处放一张右键菜单和弹窗的截图）_
-
-> _（建议在此处放一张底部控制台输出结果的截图）_
+![use-demo.gif](doc/images/use-demo.gif)
 
 * * *
 
 🛠 安装指南 (Installation)
 ----------------------
 
-### 环境要求
+### 插件市场安装
 
-*   **IntelliJ IDEA**: 2023.2 或更高版本 (Community 或 Ultimate 均可)
+`Plugins` 搜索 `ignite`安装
 
-*   **JDK**: 运行环境需 Java 17+ (目标项目可以是 Java 8+)
+![plugins-ignite.png](doc/images/plugins-ignite.png)
 
-*   **OS**: Windows / macOS / Linux
+然后在任意方法上面邮件即可执行
 
 ### 从源码构建
 
@@ -108,23 +89,6 @@
     *   **入参 (JSON)**：编辑方法的入参。插件默认会生成随机 Mock 数据，你可以根据需要修改。
 
 5.  **查看结果**： 点击 `OK`。底部会自动弹出 **Ignite Console** 窗口，显示结构化的执行报告。
-
-* * *
-
-⚠️ 常见问题 (Troubleshooting)
--------------------------
-
-**Q: 点击运行后提示 "Wait Arthas response timeout"？**
-
-> **A:** 这通常是因为你的项目当前正处于 **Debug 断点暂停 (Suspended)** 状态。 Arthas 无法在 JVM 暂停时执行代码。请先在 Debug 窗口点击 **Resume Program (F9)** 放行断点，然后再运行插件。
-
-**Q: 第一次运行非常慢？**
-
-> **A:** 首次运行时，插件需要去阿里云仓库下载 Arthas 的核心包（约 10MB）。下载完成后，后续运行通常在 100ms 内完成。
-
-**Q: 报错 `NoClassDefFoundError` 或 `ClassNotFoundException`？**
-
-> **A:** 确保你选择了正确的进程。如果你在 `OrderService` 的代码上右键，却选择了 `UserService` 的进程，Arthas 会找不到对应的类。
 
 * * *
 
