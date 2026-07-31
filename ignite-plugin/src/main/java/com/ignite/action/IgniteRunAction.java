@@ -10,9 +10,8 @@ import com.ignite.infra.LastRunRecord;
 import com.ignite.infra.PidUtils;
 import com.intellij.ide.util.PropertiesComponent;
 import com.intellij.lang.Language;
-import com.intellij.notification.Notification;
 import com.intellij.notification.NotificationType;
-import com.intellij.notification.Notifications;
+import com.intellij.notification.NotificationGroupManager;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
@@ -24,6 +23,7 @@ import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.psi.PsiDocumentManager;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiMethod;
+import com.intellij.psi.PsiParameter;
 
 import com.intellij.psi.codeStyle.CodeStyleManager;
 import com.intellij.ui.LanguageTextField;
@@ -91,13 +91,19 @@ public class IgniteRunAction extends AnAction {
         String className = method.getContainingClass() != null
             ? method.getContainingClass().getQualifiedName()
             : "Unknown";
+        PsiParameter[] params = method.getParameterList().getParameters();
+        String[] paramTypes = new String[params.length];
+        for (int i = 0; i < params.length; i++) {
+            paramTypes[i] = params[i].getType().getCanonicalText();
+        }
         IgniteLastRunService.getInstance(project).save(new LastRunRecord(
             className,
             method.getName(),
             method.getParameterList().getParametersCount(),
             jsonArgs,
             selectedApp.pid,
-            selectedApp.displayName
+            selectedApp.displayName,
+            paramTypes
         ));
 
         // 5. 异步执行
@@ -216,7 +222,10 @@ public class IgniteRunAction extends AnAction {
         }
 
         private static void showDialogNotification(Project project, String content, NotificationType type) {
-            Notifications.Bus.notify(new Notification("Ignite Notification Group", "Ignite", content, type), project);
+            NotificationGroupManager.getInstance()
+                .getNotificationGroup("Ignite Notification Group")
+                .createNotification(content, type)
+                .notify(project);
         }
 
         public PidUtils.RunningApp getSelectedApp() {
@@ -229,6 +238,9 @@ public class IgniteRunAction extends AnAction {
     }
 
     private void showNotification(Project project, String content, NotificationType type) {
-        Notifications.Bus.notify(new Notification("Ignite Notification Group", "Ignite", content, type), project);
+        NotificationGroupManager.getInstance()
+            .getNotificationGroup("Ignite Notification Group")
+            .createNotification(content, type)
+            .notify(project);
     }
 }

@@ -30,5 +30,9 @@
                     anchor="bottom"
                     factoryClass="com.ignite.infra.IgniteToolWindowFactory"/>
 
+        <projectActivity class="com.ignite.infra.IgniteAutoAttacher"/>
+
+        <notificationGroup id="Ignite Notification Group" displayType="BALLOON"/>
+
     </extensions>
 </idea-plugin>

@@ -8,13 +8,14 @@ import com.intellij.openapi.components.Service;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.wm.ToolWindow;
 import com.intellij.openapi.wm.ToolWindowManager;
-import java.text.SimpleDateFormat;
-import java.util.Date;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
 @Service(Service.Level.PROJECT)
 public final class IgniteConsoleService {
 
     public static final String TOOL_WINDOW_ID = "Ignite Console";
+    private static final DateTimeFormatter LOG_TS = DateTimeFormatter.ofPattern("HH:mm:ss");
     private ConsoleView consoleView;
     private final ObjectMapper objectMapper = JacksonSupport.mapper();
     private final Project project;
@@ -42,9 +43,7 @@ public final class IgniteConsoleService {
         activateWindow();
         if (consoleView == null) return;
 
-        String time = new SimpleDateFormat("HH:mm:ss").format(new Date());
-
-        // 1. 打印分割线和头部
+        String time = LOG_TS.format(LocalDateTime.now());
         consoleView.print("════════════════════════════════════════════════════════════════════════\n", ConsoleViewContentType.SYSTEM_OUTPUT);
         consoleView.print("[" + time + "] EXECUTION REPORT\n", ConsoleViewContentType.LOG_INFO_OUTPUT);
 
@@ -85,7 +84,7 @@ public final class IgniteConsoleService {
     public void printError(String error) {
         activateWindow();
         if (consoleView != null) {
-            String time = new SimpleDateFormat("HH:mm:ss").format(new Date());
+            String time = LOG_TS.format(LocalDateTime.now());
             consoleView.print("[" + time + "] ERROR: " + error + "\n", ConsoleViewContentType.ERROR_OUTPUT);
         }
     }

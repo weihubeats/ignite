@@ -3,9 +3,8 @@ package com.ignite.core;
 import com.ignite.infra.ArthasController;
 import com.ignite.infra.IgniteConsoleService;
 import com.ignite.infra.PidUtils;
-import com.intellij.notification.Notification;
 import com.intellij.notification.NotificationType;
-import com.intellij.notification.Notifications;
+import com.intellij.notification.NotificationGroupManager;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.progress.ProgressIndicator;
@@ -98,6 +97,9 @@ public final class IgniteMethodExecutor {
     }
 
     private static void showNotification(Project project, String content, NotificationType type) {
-        Notifications.Bus.notify(new Notification("Ignite Notification Group", "Ignite", content, type), project);
+        NotificationGroupManager.getInstance()
+            .getNotificationGroup("Ignite Notification Group")
+            .createNotification(content, type)
+            .notify(project);
     }
 }

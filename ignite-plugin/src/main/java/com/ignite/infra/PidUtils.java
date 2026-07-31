@@ -5,11 +5,9 @@ import com.intellij.execution.process.ProcessHandler;
 import com.intellij.execution.ui.RunContentDescriptor;
 import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.project.Project;
-import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
-import org.apache.commons.lang3.StringUtils;
 
 public class PidUtils {
 
@@ -63,7 +61,8 @@ public class PidUtils {
             String temp = raw.replace("Run profile '", "").replace("'", "");
             // 2. 如果包含包名，只取最后一段类名 (e.g., com.example.UserService -> UserService)
             if (temp.contains(".")) {
-                temp = StringUtils.substringAfterLast(temp, ".");
+                int lastDot = temp.lastIndexOf('.');
+                temp = lastDot != -1 ? temp.substring(lastDot + 1) : temp;
             }
             // 3. 去除 Application 后缀 (可选，UserServiceApplication -> UserService)
             if (temp.length() > 12 && temp.endsWith("Application")) {

@@ -10,7 +10,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public class OgnlConverter {
 
@@ -34,7 +33,6 @@ public class OgnlConverter {
             }
 
             List<String> ognlArgs = new ArrayList<>();
-            AtomicInteger varCounter = new AtomicInteger(0);
 
             for (int i = 0; i < parameters.length; i++) {
                 PsiParameter parameter = parameters[i];
@@ -57,7 +55,7 @@ public class OgnlConverter {
                     valueNode = root;
                 }
 
-                ognlArgs.add(convertNode(valueNode, type, varCounter));
+                ognlArgs.add(convertNode(valueNode, type));
             }
             return String.join(", ", ognlArgs);
         } catch (Exception e) {
@@ -65,7 +63,7 @@ public class OgnlConverter {
         }
     }
 
-    private static String convertNode(JsonNode node, PsiType type, AtomicInteger counter) {
+    private static String convertNode(JsonNode node, PsiType type) {
         if (node == null || node.isNull()) return "null";
 
         // 1. 字符串：全面采用 Base64 传输，完美避开所有引号被吞、特殊字符转义失败的问题
@@ -98,7 +96,7 @@ public class OgnlConverter {
 
             StringBuilder sb = new StringBuilder("{");
             for (int i = 0; i < node.size(); i++) {
-                sb.append(convertNode(node.get(i), componentType, counter));
+                sb.append(convertNode(node.get(i), componentType));
                 if (i < node.size() - 1) sb.append(", ");
             }
             sb.append("}");

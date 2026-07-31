@@ -11,6 +11,8 @@ import java.net.SocketException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.regex.Pattern;
 import org.apache.commons.net.telnet.TelnetClient;
 
@@ -25,6 +27,7 @@ public class ArthasController {
     private static final int PORT = 3658;
 
     private static final Pattern PROMPT_PATTERN = Pattern.compile("\\[arthas@\\d+\\]\\$\\s*$");
+    private static final DateTimeFormatter LOG_TS = DateTimeFormatter.ofPattern("HH:mm:ss.SSS");
 
     // 重试配置
     private static final int MAX_RETRY_ATTEMPTS = 3;
@@ -38,6 +41,15 @@ public class ArthasController {
     private static volatile long lastConnectionCheckTime = 0;
     private static final long CONNECTION_CACHE_TTL_MS = 5000; // 缓存 5 秒
     private static volatile String connectedPid = null;
+
+    // 超时与轮询配置
+    private static final int ATTACH_PHASE1_DEADLINE_MS = 180_000;
+    private static final int ATTACH_PHASE3_DEADLINE_MS = 30_000;
+    private static final int PHASE1_SLEEP_MS = 100;
+    private static final int PHASE3_SLEEP_MS = 500;
+    private static final int PHASE1_CONNECT_CHECK_INTERVAL = 10;
+    private static final int PHASE1_LOG_INTERVAL = 100;
+    private static final int PHASE3_LOG_INTERVAL = 5;
 
     private static File getArthasJar() throws IOException {
         // 使用固定的插件目录，避免每次重启都重新解压
@@ -72,7 +84,7 @@ public class ArthasController {
 
     private static String readVersionFile(File versionFile) {
         try {
-            return new String(Files.readAllBytes(versionFile.toPath())).trim();
+            return new String(Files.readAllBytes(versionFile.toPath()), StandardCharsets.UTF_8).trim();
         } catch (IOException e) {
             return "";
         }
@@ -80,7 +92,7 @@ public class ArthasController {
 
     private static void writeVersionFile(File versionFile, String version) {
         try {
-            Files.write(versionFile.toPath(), version.getBytes());
+            Files.write(versionFile.toPath(), version.getBytes(StandardCharsets.UTF_8));
         } catch (IOException e) {
             System.err.println("[Ignite] 无法写入版本文件: " + e.getMessage());
         }
@@ -112,8 +124,7 @@ public class ArthasController {
                 // 请确保你的 IDEA 插件 resources/bin/lib/ 目录下确实包含了这些文件
                 extractJarFromResources("lib/" + libFileName, targetLib);
             } catch (FileNotFoundException e) {
-                // 如果你只打包了部分库，未找到的可以忽略，打印个 debug 即可
-                // System.out.println("[Ignite] Native lib not found in resources, skip: " + libFileName);
+                System.out.println("[Ignite] Native lib not found in resources, skip: " + libFileName);
             } catch (IOException e) {
                 System.err.println("[Ignite] 无法解压 native lib " + libFileName + ": " + e.getMessage());
             }
@@ -163,10 +174,13 @@ public class ArthasController {
     }
 
     /**
-     * 获取 Arthas native 库文件的绝对路径，供 vmtool 命令 --libPath 使用。
-     * Arthas VmToolCommand 会用 FileInputStream 打开该路径（期望是文件而非目录）。
-     * 应在 attach 之后调用，确保 lib 已解压。
+     * 获取/预解压 Arthas JAR 到本地目录。
+     * 在 IDE 启动阶段异步调用，避免首次用户运行时等待解压。
      */
+    public static String getArthasJarPath() throws IOException {
+        return getArthasJar().getAbsolutePath();
+    }
+
     public static String getArthasLibPath() {
         File libDir = new File(getArthasHomeDir(), "lib");
         String libFileName = getNativeLibFileName();
@@ -230,42 +244,10 @@ public class ArthasController {
      * 实际检测连接状态
      */
     private static boolean checkActualConnection() {
-        return isPortOpen(PORT) && testConnection();
-    }
-
-    /**
-     * 获取当前连接的 PID
-     */
-    public static String getConnectedPid() {
-        return connectedPid;
-    }
-
-    /**
-     * 清除连接缓存（用于强制重新检测）
-     */
-    public static void invalidateConnectionCache() {
-        cachedConnectionStatus = false;
-        lastConnectionCheckTime = 0;
-        connectedPid = null;
-    }
-
-    /**
-     * 测试连接是否可用
-     */
-    private static boolean testConnection() {
-        TelnetClient telnet = new TelnetClient();
-        try {
-            telnet.setConnectTimeout(2000);
-            telnet.connect("127.0.0.1", PORT);
-            telnet.disconnect();
-            return true;
-        } catch (IOException e) {
-            return false;
-        }
+        return isPortOpen(PORT);
     }
 
     public static void attach(String pid, IgniteConsoleService console) throws Exception {
-        // 如果已经连接，直接返回
         if (isArthasConnected(pid)) {
             log(console, "Arthas 已连接到 PID " + pid + "，跳过 attach");
             return;
@@ -285,26 +267,22 @@ public class ArthasController {
 
         log(console, "使用 Java: " + javaBin);
 
-        // 设置 Arthas 主目录环境变量，使用本地 jar
         File arthasHome = getArthasHomeDir();
         log(console, "Arthas 主目录: " + arthasHome.getAbsolutePath());
 
-        // 检查本地 jar 是否存在
         File coreJar = new File(arthasHome, ARTHAS_CORE_JAR);
         File agentJar = new File(arthasHome, ARTHAS_AGENT_JAR);
         File spyJar = new File(arthasHome, ARTHAS_SPY_JAR);
 
-        // 构建命令，添加 -Djava.library.path 让 vmtool 能找到 native lib
         File libDir = new File(arthasHome, "lib");
         String libraryPath = libDir.exists() ? libDir.getAbsolutePath() : "";
 
         ProcessBuilder pb;
         if (coreJar.exists() && agentJar.exists() && spyJar.exists()) {
-            // 使用本地 jar，直接指定 core jar 路径跳过下载
             log(console, "使用本地 Arthas jar 文件: " + coreJar.getAbsolutePath());
             pb = new ProcessBuilder(
                 javaBin,
-                "-Djava.library.path=" + libraryPath, // 指定 native lib 路径
+                "-Djava.library.path=" + libraryPath,
                 "-jar", jar.getAbsolutePath(),
                 "--select", pid,
                 "--telnet-port", String.valueOf(PORT),
@@ -313,7 +291,6 @@ public class ArthasController {
                 "--arthas-home", arthasHome.getAbsolutePath()
             );
         } else {
-            // 本地 jar 不存在，需要下载
             log(console, "本地 Arthas jar 不存在，需要下载...");
             pb = new ProcessBuilder(
                 javaBin,
@@ -325,71 +302,103 @@ public class ArthasController {
                 "--attach-only"
             );
         }
-        // 设置环境变量，让 Arthas 知道去哪里找 jar
         pb.environment().put("ARTHAS_HOME", arthasHome.getAbsolutePath());
         pb.redirectErrorStream(true);
         Process process = pb.start();
 
         log(console, "Arthas attach 进程已启动，等待连接...");
 
-        // 改进的等待逻辑：等待端口开放且连接可用
-        // 增加超时到 180 秒，因为 Arthas 首次下载可能需要时间
-        long deadline = System.currentTimeMillis() + 180_000;
+        // 记录各阶段开始时间，用于打印已等待时长
+        long phase1Start = System.currentTimeMillis();
+        long deadline = System.currentTimeMillis() + ATTACH_PHASE1_DEADLINE_MS;
         int checkCount = 0;
-        boolean processExitedNormally = false;
 
-        while (System.currentTimeMillis() < deadline) {
+        // Phase 1: 进程未退出时，仅偶发检查连接，主要等待进程完成
+        while (System.currentTimeMillis() < deadline && process.isAlive()
+                && !Thread.currentThread().isInterrupted()) {
             checkCount++;
-
-            // 检查是否已连接成功（不使用缓存，实时检测）
-            if (checkActualConnection()) {
-                connectedPid = pid;
-                cachedConnectionStatus = true;
-                lastConnectionCheckTime = System.currentTimeMillis();
-                log(console, "Arthas 连接成功 (尝试 " + checkCount + " 次)");
-                return;
+            if (checkCount % PHASE1_CONNECT_CHECK_INTERVAL == 0) {
+                if (checkActualConnection()) {
+                    connectedPid = pid;
+                    cachedConnectionStatus = true;
+                    lastConnectionCheckTime = System.currentTimeMillis();
+                    log(console, "Arthas 连接成功 (Phase 1, 尝试 " + checkCount + " 次)");
+                    return;
+                }
+                if (checkCount % PHASE1_LOG_INTERVAL == 0) {
+                    long elapsed = (System.currentTimeMillis() - phase1Start) / 1000;
+                    log(console, "Arthas 下载/启动中... (已等待 " + elapsed + " 秒)");
+                }
             }
+            Thread.sleep(PHASE1_SLEEP_MS);
+        }
+        if (Thread.currentThread().isInterrupted()) {
+            process.destroyForcibly();
+            throw new InterruptedException("Attach cancelled");
+        }
 
-            // 检查进程是否退出
-            if (!process.isAlive()) {
+        // Phase 2: 进程退出，读取状态
+        if (!process.isAlive()) {
+            try {
                 int exitCode = process.exitValue();
-
                 if (exitCode != 0) {
-                    // 进程异常退出
                     String errorOutput = readProcessOutput(process);
                     log(console, "Attach 进程异常退出 (code: " + exitCode + "): " + errorOutput);
                     throw new RuntimeException("Attach 进程异常退出 (code: " + exitCode + "): " + errorOutput);
                 }
-
-                // 进程正常退出，标记一下，继续等待连接建立
-                if (!processExitedNormally) {
-                    processExitedNormally = true;
-                    log(console, "Arthas attach 进程已退出，等待服务就绪...");
-                }
-
-                // 进程正常退出后，每 50 次检查记录一次日志
-                if (checkCount % 50 == 0) {
-                    long elapsed = (System.currentTimeMillis() - (deadline - 180_000)) / 1000;
-                    log(console, "等待 Arthas 服务就绪... (已等待 " + elapsed + " 秒)");
-                }
-            } else {
-                // 进程仍在运行，每 100 次检查记录一次日志
-                if (checkCount % 100 == 0) {
-                    long elapsed = (System.currentTimeMillis() - (deadline - 180_000)) / 1000;
-                    log(console, "Arthas 下载/启动中... (已等待 " + elapsed + " 秒)");
-                }
+                log(console, "Arthas attach 进程已退出，检测服务是否就绪...");
+            } catch (IllegalThreadStateException e) {
+                throw new RuntimeException("Attach 进程状态异常: " + e.getMessage(), e);
             }
-
-            Thread.sleep(100);
         }
 
-        // 超时
+        // Phase 3: 进程退出后，集中检测端口是否开放（最多 30s）
+        long postDeadline = System.currentTimeMillis() + ATTACH_PHASE3_DEADLINE_MS;
+        long phase3Start = System.currentTimeMillis();
+        int postCheckCount = 0;
+        while (System.currentTimeMillis() < postDeadline && !Thread.currentThread().isInterrupted()) {
+            postCheckCount++;
+            if (checkActualConnection()) {
+                connectedPid = pid;
+                cachedConnectionStatus = true;
+                lastConnectionCheckTime = System.currentTimeMillis();
+                log(console, "Arthas 连接成功 (Phase 3, 尝试 " + postCheckCount + " 次, 总计 " + (checkCount + postCheckCount) + " 次)");
+                return;
+            }
+            if (postCheckCount % PHASE3_LOG_INTERVAL == 0) {
+                long elapsed = (System.currentTimeMillis() - phase3Start) / 1000;
+                log(console, "等待 Arthas 服务就绪... (已等待 " + elapsed + " 秒)");
+            }
+            Thread.sleep(PHASE3_SLEEP_MS);
+        }
+        if (Thread.currentThread().isInterrupted()) {
+            process.destroyForcibly();
+            throw new InterruptedException("Attach cancelled");
+        }
+
         if (process.isAlive()) {
             process.destroyForcibly();
         }
-        log(console, "Attach 超时，共尝试 " + checkCount + " 次");
-        throw new RuntimeException("Attach 超时 (180秒)，无法连接到 Arthas。可能是首次下载 Arthas 较慢，请检查网络或手动下载 Arthas");
+        log(console, "Attach 超时，共检测 " + (checkCount + postCheckCount) + " 次");
+        throw new RuntimeException("Attach 超时，无法连接到 Arthas。可能是首次下载 Arthas 较慢，请检查网络或手动下载 Arthas");
     }
+
+    /**
+     * 获取当前连接的 PID
+     */
+    public static String getConnectedPid() {
+        return connectedPid;
+    }
+
+    /**
+     * 清除连接缓存（用于强制重新检测）
+     */
+    public static void invalidateConnectionCache() {
+        cachedConnectionStatus = false;
+        lastConnectionCheckTime = 0;
+        connectedPid = null;
+    }
+
 
     /**
      * 兼容旧版本，不带日志
@@ -402,7 +411,7 @@ public class ArthasController {
      * 日志输出辅助方法
      */
     private static void log(IgniteConsoleService console, String message) {
-        String timestamp = new java.text.SimpleDateFormat("HH:mm:ss.SSS").format(new java.util.Date());
+        String timestamp = LOG_TS.format(LocalDateTime.now());
         String logMessage = "[" + timestamp + "] [Arthas] " + message;
         System.out.println(logMessage);
         if (console != null) {
@@ -444,7 +453,6 @@ public class ArthasController {
     private static String sendCommandWithRetry(String command, int remainingAttempts) {
         TelnetClient telnet = new TelnetClient();
         try {
-            // 确保连接超时设置
             telnet.setConnectTimeout(CONNECT_TIMEOUT_MS);
             telnet.connect("127.0.0.1", PORT);
 
@@ -452,7 +460,6 @@ public class ArthasController {
             InputStream in = telnet.getInputStream();
             BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
 
-            // 等待提示符出现
             String initialOutput = readUntilPrompt(reader);
             if (!PROMPT_PATTERN.matcher(initialOutput).find()) {
                 throw new IOException("未能获取 Arthas 提示符");
@@ -463,12 +470,9 @@ public class ArthasController {
 
             String rawResult = readUntilPrompt(reader, EXECUTION_TIMEOUT_MS);
 
-            telnet.disconnect();
-
             return cleanOutput(rawResult);
 
         } catch (Exception e) {
-            // 如果是连接被拒绝且还有重试次数，则重试
             if (remainingAttempts > 1 && isConnectionRefused(e)) {
                 System.out.println("[Ignite] Connection refused, retrying... (" + (MAX_RETRY_ATTEMPTS - remainingAttempts + 1) + "/" + MAX_RETRY_ATTEMPTS + ")");
                 try {
@@ -480,6 +484,11 @@ public class ArthasController {
             }
             e.printStackTrace();
             return "通信失败: " + e.getMessage();
+        } finally {
+            try {
+                telnet.disconnect();
+            } catch (IOException ignored) {
+            }
         }
     }
 
@@ -502,10 +511,8 @@ public class ArthasController {
             out.println(asyncCommand);
             out.flush();
 
-            // 等待 Arthas 受理后台命令后再断开，避免命令未执行就终止输出流
             readUntilPrompt(reader);
 
-            telnet.disconnect();
         } catch (Exception e) {
             if (remainingAttempts > 1 && isConnectionRefused(e)) {
                 System.out.println("[Ignite] Connection refused, retrying... (" + (MAX_RETRY_ATTEMPTS - remainingAttempts + 1) + "/" + MAX_RETRY_ATTEMPTS + ")");
@@ -518,6 +525,11 @@ public class ArthasController {
                 return;
             }
             throw new RuntimeException("通信失败: " + e.getMessage(), e);
+        } finally {
+            try {
+                telnet.disconnect();
+            } catch (IOException ignored) {
+            }
         }
     }
 
@@ -577,8 +589,7 @@ public class ArthasController {
     }
 
     private static String cleanOutput(String raw) {
-        // 移除最后一行提示符 [arthas@PID]$
-        return raw.replaceAll("\\[arthas@\\d+\\]\\$\\s*$", "").trim();
+        return PROMPT_PATTERN.matcher(raw).replaceAll("").trim();
     }
 
     private static boolean isPortOpen(int port) {

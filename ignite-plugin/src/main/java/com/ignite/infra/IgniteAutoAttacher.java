@@ -4,12 +4,12 @@ import com.intellij.execution.ExecutionListener;
 import com.intellij.execution.ExecutionManager;
 import com.intellij.execution.process.ProcessHandler;
 import com.intellij.execution.runners.ExecutionEnvironment;
-import com.intellij.notification.Notification;
 import com.intellij.notification.NotificationType;
-import com.intellij.notification.Notifications;
+import com.intellij.notification.NotificationGroupManager;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.startup.ProjectActivity;
+import java.io.File;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -21,19 +21,27 @@ import org.jetbrains.annotations.Nullable;
 
 public class IgniteAutoAttacher implements ProjectActivity {
 
-    // 线程池用于后台 attach 任务
-    private static final ExecutorService ATTACH_EXECUTOR = Executors.newCachedThreadPool(r -> {
-        Thread t = new Thread(r, "Ignite-AutoAttach-Thread");
-        t.setDaemon(true);
-        return t;
-    });
+    private static final ExecutorService ATTACH_EXECUTOR =
+            Executors.newFixedThreadPool(2, r -> {
+                Thread t = new Thread(r, "Ignite-AutoAttach-Thread");
+                t.setDaemon(true);
+                return t;
+            });
 
-    // 记录已 attach 的 PID，避免重复 attach
     private static final Map<String, Boolean> attachedPids = new ConcurrentHashMap<>();
 
     @Nullable
     @Override
     public Object execute(@NotNull Project project, @NotNull Continuation<? super Unit> continuation) {
+
+        // 0. 预解压 Arthas JAR，让用户首次运行时不等待
+        ApplicationManager.getApplication().executeOnPooledThread(() -> {
+            try {
+                ArthasController.getArthasJarPath();
+            } catch (Exception e) {
+                System.out.println("[Ignite] Failed to pre-extract Arthas JAR: " + e.getMessage());
+            }
+        });
 
         // 1. 检查当前已经运行的进程并尝试 attach
         checkAndAttachRunningProcesses(project);
@@ -153,6 +161,9 @@ public class IgniteAutoAttacher implements ProjectActivity {
     }
 
     private void showNotification(Project project, String content, NotificationType type) {
-        Notifications.Bus.notify(new Notification("Ignite Notification Group", "Ignite", content, type), project);
+        NotificationGroupManager.getInstance()
+            .getNotificationGroup("Ignite Notification Group")
+            .createNotification(content, type)
+            .notify(project);
     }
 }

@@ -1,10 +1,8 @@
 package com.ignite.infra;
 
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
-/**
- * 记录最近一次 Ignite 方法调用的上下文，用于一键重跑。
- */
 public final class LastRunRecord {
 
     private final @NotNull String classQualifiedName;
@@ -13,6 +11,7 @@ public final class LastRunRecord {
     private final @NotNull String jsonArgs;
     private final @NotNull String pid;
     private final @NotNull String appDisplayName;
+    private final @Nullable String[] parameterTypes;
 
     public LastRunRecord(
         @NotNull String classQualifiedName,
@@ -22,12 +21,25 @@ public final class LastRunRecord {
         @NotNull String pid,
         @NotNull String appDisplayName
     ) {
+        this(classQualifiedName, methodName, parameterCount, jsonArgs, pid, appDisplayName, null);
+    }
+
+    public LastRunRecord(
+        @NotNull String classQualifiedName,
+        @NotNull String methodName,
+        int parameterCount,
+        @NotNull String jsonArgs,
+        @NotNull String pid,
+        @NotNull String appDisplayName,
+        @Nullable String[] parameterTypes
+    ) {
         this.classQualifiedName = classQualifiedName;
         this.methodName = methodName;
         this.parameterCount = parameterCount;
         this.jsonArgs = jsonArgs;
         this.pid = pid;
         this.appDisplayName = appDisplayName;
+        this.parameterTypes = parameterTypes;
     }
 
     public @NotNull String getClassQualifiedName() {
@@ -52,6 +64,10 @@ public final class LastRunRecord {
 
     public @NotNull String getAppDisplayName() {
         return appDisplayName;
+    }
+
+    public @Nullable String[] getParameterTypes() {
+        return parameterTypes;
     }
 
     public @NotNull String getMethodSignature() {

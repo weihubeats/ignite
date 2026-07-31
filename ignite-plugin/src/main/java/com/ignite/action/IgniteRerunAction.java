@@ -5,9 +5,8 @@ import com.ignite.infra.IgniteLastRunService;
 import com.ignite.infra.LastRunRecord;
 import com.ignite.infra.PidUtils;
 import com.intellij.icons.AllIcons;
-import com.intellij.notification.Notification;
 import com.intellij.notification.NotificationType;
-import com.intellij.notification.Notifications;
+import com.intellij.notification.NotificationGroupManager;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.project.Project;
@@ -72,6 +71,9 @@ public class IgniteRerunAction extends AnAction {
     }
 
     private void showNotification(Project project, String content, NotificationType type) {
-        Notifications.Bus.notify(new Notification("Ignite Notification Group", "Ignite", content, type), project);
+        NotificationGroupManager.getInstance()
+            .getNotificationGroup("Ignite Notification Group")
+            .createNotification(content, type)
+            .notify(project);
     }
 }

@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "io.github.weihubeats"
-version = "1.0.8"
+version = "1.0.9"
 
 java {
     sourceCompatibility = JavaVersion.VERSION_17
@@ -31,7 +31,6 @@ dependencies {
     implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.15.2")
     implementation("net.datafaker:datafaker:2.0.2")
     implementation("commons-net:commons-net:3.9.0")
-    implementation("org.apache.commons:commons-lang3:3.12.0")
 
 }
 
@@ -48,6 +47,15 @@ intellijPlatform {
         description = file("src/main/resources/META-INF/description.html").readText()
 
         changeNotes = """
+            Version 1.0.9:
+            - Eliminate 180s busy-wait polling; attach uses phased detection (process-exit + port check)
+            - Remove redundant Telnet probe in connection health check
+            - Pre-extract Arthas JAR at IDE startup for faster first-run
+            - Fix enum index out-of-bounds in mock data generator
+            - Fix telnet socket leak on command retry
+            - Add persistence for last-run record across IDE restart
+            - Improve method resolution with parameter type matching
+
             Version 1.0.8:
             - Fix Spring @Service invocation via ApplicationContext (Spring Boot compatible)
             - Support JDK dynamic proxy beans (getBean by interface fallback)

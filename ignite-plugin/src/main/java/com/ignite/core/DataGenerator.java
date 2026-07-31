@@ -260,6 +260,10 @@ public class DataGenerator {
     ) {
         int count = 0;
         for (PsiMethod method : psiClass.getMethods()) {
+            PsiClass declaringClass = method.getContainingClass();
+            if (declaringClass != null && !declaringClass.equals(psiClass)) {
+                continue;
+            }
             if (!isReadableAccessor(method)) {
                 continue;
             }
@@ -315,11 +319,10 @@ public class DataGenerator {
                 continue;
             }
             int paramCount = constructor.getParameterList().getParametersCount();
-            if (paramCount == 0 || paramCount >= bestParamCount) {
-                continue;
+            if (paramCount < bestParamCount) {
+                bestParamCount = paramCount;
+                best = constructor;
             }
-            bestParamCount = paramCount;
-            best = constructor;
         }
         return best;
     }
@@ -364,7 +367,7 @@ public class DataGenerator {
             return;
         }
 
-        int index = faker.number().numberBetween(0, enumConstants.length);
+        int index = faker.number().numberBetween(0, Math.max(0, enumConstants.length - 1));
         for (int i = 0; i < enumConstants.length; i++) {
             if (enumConstants[i] instanceof PsiEnumConstant && i == index) {
                 node.put(key, enumConstants[i].getName());
