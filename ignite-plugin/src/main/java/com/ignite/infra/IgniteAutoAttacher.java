@@ -2,6 +2,7 @@ package com.ignite.infra;
 
 import com.intellij.execution.ExecutionListener;
 import com.intellij.execution.ExecutionManager;
+import com.intellij.execution.process.BaseProcessHandler;
 import com.intellij.execution.process.ProcessHandler;
 import com.intellij.execution.runners.ExecutionEnvironment;
 import com.intellij.notification.NotificationType;
@@ -148,14 +149,11 @@ public class IgniteAutoAttacher implements ProjectActivity {
         });
     }
 
+    @SuppressWarnings("deprecation")
     private String getPidFromHandler(ProcessHandler handler) {
-        try {
-            if (handler instanceof com.intellij.execution.process.BaseProcessHandler) {
-                Process process = ((com.intellij.execution.process.BaseProcessHandler<?>) handler).getProcess();
-                return String.valueOf(process.pid());
-            }
-        } catch (Exception e) {
-            return null;
+        if (handler instanceof BaseProcessHandler) {
+            Process process = ((BaseProcessHandler<?>) handler).getProcess();
+            if (process != null) return String.valueOf(process.pid());
         }
         return null;
     }

@@ -1,11 +1,10 @@
 package com.ignite.infra;
 
 import com.intellij.execution.ExecutionManager;
+import com.intellij.execution.process.BaseProcessHandler;
 import com.intellij.execution.process.ProcessHandler;
-import com.intellij.execution.ui.RunContentDescriptor;
 import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.project.Project;
-import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -33,13 +32,12 @@ public class PidUtils {
         });
     }
 
+    @SuppressWarnings("deprecation")
     private static String getPidFromHandler(ProcessHandler handler) {
-        try {
-            Method getProcessMethod = handler.getClass().getMethod("getProcess");
-            getProcessMethod.setAccessible(true);
-            Process process = (Process) getProcessMethod.invoke(handler);
+        if (handler instanceof BaseProcessHandler) {
+            Process process = ((BaseProcessHandler<?>) handler).getProcess();
             if (process != null) return String.valueOf(process.pid());
-        } catch (Exception ignored) {}
+        }
         return null;
     }
 

@@ -1,10 +1,10 @@
 plugins {
     id("java")
-    id("org.jetbrains.intellij.platform") version "2.2.1"
+    id("org.jetbrains.intellij.platform") version "2.18.1"
 }
 
 group = "io.github.weihubeats"
-version = "1.0.9"
+version = "1.0.10"
 
 java {
     sourceCompatibility = JavaVersion.VERSION_17
@@ -21,7 +21,7 @@ repositories {
 
 dependencies {
     intellijPlatform {
-        create("IC", "2023.3.6")
+        create("IC", "2025.2.4")
         bundledPlugin("com.intellij.java")
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
 
@@ -40,13 +40,20 @@ intellijPlatform {
         version = project.version.toString()
         id = "io.github.weihubeats.ignite-plugin"
         ideaVersion {
-            sinceBuild = "232"
+            sinceBuild = "243"
             untilBuild = provider { null }
         }
 
         description = file("src/main/resources/META-INF/description.html").readText()
 
         changeNotes = """
+            Version 1.0.10:
+            - Upgrade Gradle to 9.1.0, IntelliJ baseline to 2025.2.4
+            - Upgrade intellij-platform-gradle-plugin to 2.18.1
+            - Fix enum index out-of-bounds, 0-arg constructor skipping
+            - Register IgniteAutoAttacher and NotificationGroup in plugin.xml
+            - Use DateTimeFormatter instead of SimpleDateFormat
+
             Version 1.0.9:
             - Eliminate 180s busy-wait polling; attach uses phased detection (process-exit + port check)
             - Remove redundant Telnet probe in connection health check

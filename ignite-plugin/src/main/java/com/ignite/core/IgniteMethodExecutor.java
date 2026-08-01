@@ -8,6 +8,7 @@ import com.intellij.notification.NotificationGroupManager;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.progress.ProgressIndicator;
+import com.intellij.openapi.progress.PerformInBackgroundOption;
 import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.PsiMethod;
@@ -24,7 +25,7 @@ public final class IgniteMethodExecutor {
         @NotNull String jsonArgs,
         @NotNull PidUtils.RunningApp selectedApp
     ) {
-        new Task.Backgroundable(project, "Ignite: " + method.getName(), true) {
+        new Task.Backgroundable(project, "Ignite: " + method.getName(), true, PerformInBackgroundOption.ALWAYS_BACKGROUND) {
             @Override
             public void run(@NotNull ProgressIndicator indicator) {
                 IgniteConsoleService console = IgniteConsoleService.getInstance(project);
