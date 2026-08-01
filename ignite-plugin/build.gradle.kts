@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "io.github.weihubeats"
-version = "1.0.10"
+version = "1.0.9"
 
 java {
     sourceCompatibility = JavaVersion.VERSION_17
@@ -47,14 +47,16 @@ intellijPlatform {
         description = file("src/main/resources/META-INF/description.html").readText()
 
         changeNotes = """
-            Version 1.0.10:
-            - Upgrade Gradle to 9.1.0, IntelliJ baseline to 2025.2.4
-            - Upgrade intellij-platform-gradle-plugin to 2.18.1
+            Version 1.0.9:
+            - Eliminate 180s busy-wait polling; phased detection with interrupt support
+            - Pre-extract Arthas JAR at IDE startup for faster first-run
             - Fix enum index out-of-bounds, 0-arg constructor skipping
+            - Fix telnet socket leak on command retry
             - Register IgniteAutoAttacher and NotificationGroup in plugin.xml
             - Use DateTimeFormatter instead of SimpleDateFormat
+            - Persist last-run record across IDE restarts with parameter type matching
 
-            Version 1.0.9:
+            Version 1.0.8:
             - Eliminate 180s busy-wait polling; attach uses phased detection (process-exit + port check)
             - Remove redundant Telnet probe in connection health check
             - Pre-extract Arthas JAR at IDE startup for faster first-run
