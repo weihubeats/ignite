@@ -27,8 +27,8 @@ dependencies {
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Plugin.Java)
     }
 
-    implementation("com.fasterxml.jackson.core:jackson-databind:2.17.3")
-    implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.17.3")
+    implementation("com.fasterxml.jackson.core:jackson-databind:2.22.2")
+    implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.22.2")
     implementation("net.datafaker:datafaker:2.4.2")
     implementation("commons-net:commons-net:3.11.1")
 
