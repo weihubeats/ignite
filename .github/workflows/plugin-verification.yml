@@ -40,7 +40,7 @@ jobs:
 
       - name: Upload verifier reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: plugin-verifier-reports-${{ github.run_id }}
           path: ignite-plugin/build/reports/pluginVerifier/
