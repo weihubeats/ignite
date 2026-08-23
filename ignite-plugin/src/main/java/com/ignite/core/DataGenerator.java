@@ -18,7 +18,6 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -33,6 +32,41 @@ public class DataGenerator {
     private static final Set<String> OBJECT_METHODS = Set.of(
         "hashCode", "toString", "getClass", "notify", "notifyAll", "wait"
     );
+
+    /**
+     * 简单类型的 mock 值生成器注册表，对象属性与数组元素共用，避免两处维护同样的类型判断。
+     */
+    private static final Map<String, java.util.function.Supplier<Object>> SIMPLE_TYPE_MOCKS = buildSimpleTypeMocks();
+
+    private static Map<String, java.util.function.Supplier<Object>> buildSimpleTypeMocks() {
+        Map<String, java.util.function.Supplier<Object>> mocks = new HashMap<>();
+        mocks.put("int", () -> faker.number().numberBetween(1, 100));
+        mocks.put("java.lang.Integer", mocks.get("int"));
+        mocks.put("long", () -> faker.number().numberBetween(1_000_000_000L, 9_999_999_999L));
+        mocks.put("java.lang.Long", mocks.get("long"));
+        mocks.put("double", () -> faker.number().randomDouble(2, 1, 10000));
+        mocks.put("java.lang.Double", mocks.get("double"));
+        mocks.put("float", () -> (float) faker.number().randomDouble(2, 1, 10000));
+        mocks.put("java.lang.Float", mocks.get("float"));
+        mocks.put("boolean", () -> faker.bool().bool());
+        mocks.put("java.lang.Boolean", mocks.get("boolean"));
+        mocks.put("byte", () -> faker.number().numberBetween(-128, 127));
+        mocks.put("java.lang.Byte", mocks.get("byte"));
+        mocks.put("short", () -> faker.number().numberBetween(-32768, 32767));
+        mocks.put("java.lang.Short", mocks.get("short"));
+        mocks.put("char", () -> faker.lorem().characters(1));
+        mocks.put("java.lang.Character", mocks.get("char"));
+        mocks.put("java.lang.String", () -> faker.name().fullName());
+        mocks.put("java.util.Date", () -> java.util.Date.from(
+            faker.timeAndDate().birthday().atStartOfDay(java.time.ZoneId.systemDefault()).toInstant()).getTime());
+        mocks.put("java.time.LocalDate", () -> LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE));
+        mocks.put("java.time.LocalDateTime", () -> LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        mocks.put("java.time.LocalTime", () -> java.time.LocalTime.now().format(DateTimeFormatter.ISO_LOCAL_TIME));
+        mocks.put("java.time.Instant", Instant::now);
+        mocks.put("java.math.BigDecimal", () -> faker.number().randomDouble(2, 1, 1000000));
+        mocks.put("java.util.UUID", () -> UUID.randomUUID().toString());
+        return Map.copyOf(mocks);
+    }
 
     public static String generateMethodArgsJson(PsiMethod method) {
         ObjectNode jsonObject = mapper.createObjectNode();
@@ -67,40 +101,13 @@ public class DataGenerator {
         PsiType resolvedType = resolveType(type, typeMap);
         String typeName = resolvedType.getCanonicalText();
 
-        if (typeName.equals("int") || typeName.equals("java.lang.Integer")) {
-            node.put(key, faker.number().numberBetween(1, 100));
-        } else if (typeName.equals("long") || typeName.equals("java.lang.Long")) {
-            node.put(key, faker.number().randomNumber(10, false));
-        } else if (typeName.equals("double") || typeName.equals("java.lang.Double")) {
-            node.put(key, faker.number().randomDouble(2, 1, 10000));
-        } else if (typeName.equals("float") || typeName.equals("java.lang.Float")) {
-            node.put(key, (float) faker.number().randomDouble(2, 1, 10000));
-        } else if (typeName.equals("boolean") || typeName.equals("java.lang.Boolean")) {
-            node.put(key, faker.bool().bool());
-        } else if (typeName.equals("byte") || typeName.equals("java.lang.Byte")) {
-            node.put(key, faker.number().numberBetween(-128, 127));
-        } else if (typeName.equals("short") || typeName.equals("java.lang.Short")) {
-            node.put(key, faker.number().numberBetween(-32768, 32767));
-        } else if (typeName.equals("char") || typeName.equals("java.lang.Character")) {
-            node.put(key, faker.lorem().characters(1));
-        } else if (typeName.equals("java.lang.String")) {
-            node.put(key, faker.name().fullName());
-        } else if (typeName.equals("java.util.Date")) {
-            Date date = faker.date().birthday();
-            node.put(key, date.getTime());
-        } else if (typeName.equals("java.time.LocalDate")) {
-            node.put(key, LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE));
-        } else if (typeName.equals("java.time.LocalDateTime")) {
-            node.put(key, LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
-        } else if (typeName.equals("java.time.LocalTime")) {
-            node.put(key, java.time.LocalTime.now().format(DateTimeFormatter.ISO_LOCAL_TIME));
-        } else if (typeName.equals("java.time.Instant")) {
-            node.put(key, Instant.now().toString());
-        } else if (typeName.equals("java.math.BigDecimal")) {
-            node.put(key, faker.number().randomDouble(2, 1, 1000000));
-        } else if (typeName.equals("java.util.UUID")) {
-            node.put(key, UUID.randomUUID().toString());
-        } else if (typeName.startsWith("java.util.Optional")) {
+        java.util.function.Supplier<Object> simpleMock = SIMPLE_TYPE_MOCKS.get(typeName);
+        if (simpleMock != null) {
+            node.putPOJO(key, simpleMock.get());
+            return;
+        }
+
+        if (typeName.startsWith("java.util.Optional")) {
             if (resolvedType instanceof PsiClassType optionalType) {
                 PsiType[] parameters = optionalType.getParameters();
                 if (parameters.length > 0) {
@@ -177,17 +184,13 @@ public class DataGenerator {
         PsiType resolvedType = resolveType(type, typeMap);
         String typeName = resolvedType.getCanonicalText();
 
-        if (typeName.equals("int") || typeName.equals("java.lang.Integer")) {
-            arrayNode.add(faker.number().numberBetween(1, 100));
-        } else if (typeName.equals("long") || typeName.equals("java.lang.Long")) {
-            arrayNode.add(faker.number().randomNumber(10, false));
-        } else if (typeName.equals("double") || typeName.equals("java.lang.Double")) {
-            arrayNode.add(faker.number().randomDouble(2, 1, 10000));
-        } else if (typeName.equals("boolean") || typeName.equals("java.lang.Boolean")) {
-            arrayNode.add(faker.bool().bool());
-        } else if (typeName.equals("java.lang.String")) {
-            arrayNode.add(faker.lorem().word());
-        } else if (resolvedType instanceof PsiClassType classType) {
+        java.util.function.Supplier<Object> simpleMock = SIMPLE_TYPE_MOCKS.get(typeName);
+        if (simpleMock != null) {
+            arrayNode.addPOJO(simpleMock.get());
+            return;
+        }
+
+        if (resolvedType instanceof PsiClassType classType) {
             PsiClass psiClass = classType.resolve();
             if (psiClass != null && psiClass.isEnum()) {
                 ObjectNode enumHolder = mapper.createObjectNode();

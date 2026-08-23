@@ -2,9 +2,9 @@ package com.ignite.core;
 
 import com.ignite.infra.ArthasController;
 import com.ignite.infra.IgniteConsoleService;
+import com.ignite.infra.IgniteNotifier;
 import com.ignite.infra.PidUtils;
 import com.intellij.notification.NotificationType;
-import com.intellij.notification.NotificationGroupManager;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.progress.ProgressIndicator;
@@ -90,17 +90,10 @@ public final class IgniteMethodExecutor {
                         if (msg != null && (msg.contains("Read timed out") || msg.contains("timeout"))) {
                             msg += "\n\n【提示】: 检测到超时。如果当前处于 Debug 断点暂停状态，Arthas 无法执行代码。请 Resume 放行断点后再试。";
                         }
-                        showNotification(project, "执行失败: " + msg, NotificationType.ERROR);
+                        IgniteNotifier.notify(project, "执行失败: " + msg, NotificationType.ERROR);
                     });
                 }
             }
         }.queue();
-    }
-
-    private static void showNotification(Project project, String content, NotificationType type) {
-        NotificationGroupManager.getInstance()
-            .getNotificationGroup("Ignite Notification Group")
-            .createNotification(content, type)
-            .notify(project);
     }
 }

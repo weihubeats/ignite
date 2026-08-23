@@ -33,7 +33,7 @@ public class PidUtils {
     }
 
     @SuppressWarnings("deprecation")
-    private static String getPidFromHandler(ProcessHandler handler) {
+    public static String getPidFromHandler(ProcessHandler handler) {
         if (handler instanceof BaseProcessHandler) {
             Process process = ((BaseProcessHandler<?>) handler).getProcess();
             if (process != null) return String.valueOf(process.pid());

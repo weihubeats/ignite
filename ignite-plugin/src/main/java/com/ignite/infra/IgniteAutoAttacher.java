@@ -2,15 +2,14 @@ package com.ignite.infra;
 
 import com.intellij.execution.ExecutionListener;
 import com.intellij.execution.ExecutionManager;
-import com.intellij.execution.process.BaseProcessHandler;
 import com.intellij.execution.process.ProcessHandler;
 import com.intellij.execution.runners.ExecutionEnvironment;
 import com.intellij.notification.NotificationType;
-import com.intellij.notification.NotificationGroupManager;
 import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.startup.ProjectActivity;
-import java.io.File;
+import com.intellij.ide.util.PropertiesComponent;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -22,6 +21,11 @@ import org.jetbrains.annotations.Nullable;
 
 public class IgniteAutoAttacher implements ProjectActivity {
 
+    private static final Logger LOG = Logger.getInstance(IgniteAutoAttacher.class);
+
+    /** 自动 attach 开关（PropertiesComponent 持久化，默认开启） */
+    public static final String AUTO_ATTACH_ENABLED_KEY = "IGNITE_AUTO_ATTACH_ENABLED";
+
     private static final ExecutorService ATTACH_EXECUTOR =
             Executors.newFixedThreadPool(2, r -> {
                 Thread t = new Thread(r, "Ignite-AutoAttach-Thread");
@@ -30,6 +34,14 @@ public class IgniteAutoAttacher implements ProjectActivity {
             });
 
     private static final Map<String, Boolean> attachedPids = new ConcurrentHashMap<>();
+
+    public static boolean isAutoAttachEnabled() {
+        return PropertiesComponent.getInstance().getBoolean(AUTO_ATTACH_ENABLED_KEY, true);
+    }
+
+    public static void setAutoAttachEnabled(boolean enabled) {
+        PropertiesComponent.getInstance().setValue(AUTO_ATTACH_ENABLED_KEY, enabled, true);
+    }
 
     @Nullable
     @Override
@@ -40,9 +52,13 @@ public class IgniteAutoAttacher implements ProjectActivity {
             try {
                 ArthasController.getArthasJarPath();
             } catch (Exception e) {
-                System.out.println("[Ignite] Failed to pre-extract Arthas JAR: " + e.getMessage());
+                LOG.info("Failed to pre-extract Arthas JAR: " + e.getMessage());
             }
         });
+
+        if (!isAutoAttachEnabled()) {
+            return null;
+        }
 
         // 1. 检查当前已经运行的进程并尝试 attach
         checkAndAttachRunningProcesses(project);
@@ -52,6 +68,9 @@ public class IgniteAutoAttacher implements ProjectActivity {
             @Override
             public void processStarted(@NotNull String executorId, @NotNull ExecutionEnvironment env,
                 @NotNull ProcessHandler handler) {
+                if (!isAutoAttachEnabled()) {
+                    return;
+                }
                 triggerBackgroundAttach(project, handler);
             }
 
@@ -59,7 +78,7 @@ public class IgniteAutoAttacher implements ProjectActivity {
             public void processTerminated(@NotNull String executorId, @NotNull ExecutionEnvironment env,
                 @NotNull ProcessHandler handler, int exitCode) {
                 // 进程结束时清理记录
-                String pid = getPidFromHandler(handler);
+                String pid = PidUtils.getPidFromHandler(handler);
                 if (pid != null) {
                     attachedPids.remove(pid);
                 }
@@ -90,9 +109,9 @@ public class IgniteAutoAttacher implements ProjectActivity {
                     try {
                         ArthasController.attach(app.pid);
                         attachedPids.put(app.pid, true);
-                        showNotification(project, "Ignite 已自动连接到: " + app.displayName, NotificationType.INFORMATION);
+                        IgniteNotifier.notify(project, "Ignite 已自动连接到: " + app.displayName, NotificationType.INFORMATION);
                     } catch (Exception e) {
-                        System.out.println("[Ignite] Auto-attach failed for PID " + app.pid + ": " + e.getMessage());
+                        LOG.info("Auto-attach failed for PID " + app.pid + ": " + e.getMessage());
                     }
                 }
             } catch (InterruptedException e) {
@@ -117,7 +136,7 @@ public class IgniteAutoAttacher implements ProjectActivity {
                     }
                 }
 
-                String pid = getPidFromHandler(handler);
+                String pid = PidUtils.getPidFromHandler(handler);
                 if (pid == null || attachedPids.containsKey(pid)) {
                     return;
                 }
@@ -131,7 +150,7 @@ public class IgniteAutoAttacher implements ProjectActivity {
                     try {
                         ArthasController.attach(pid);
                         attachedPids.put(pid, true);
-                        showNotification(project, "Ignite 已自动连接到新启动的应用 (PID: " + pid + ")", NotificationType.INFORMATION);
+                        IgniteNotifier.notify(project, "Ignite 已自动连接到新启动的应用 (PID: " + pid + ")", NotificationType.INFORMATION);
                         return;
                     } catch (Exception e) {
                         // 还没准备好，继续等待
@@ -141,27 +160,11 @@ public class IgniteAutoAttacher implements ProjectActivity {
                 }
 
                 // 超时了，记录日志但不打扰用户
-                System.out.println("[Ignite] Auto-attach timeout for PID " + pid);
+                LOG.info("Auto-attach timeout for PID " + pid);
 
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
         });
-    }
-
-    @SuppressWarnings("deprecation")
-    private String getPidFromHandler(ProcessHandler handler) {
-        if (handler instanceof BaseProcessHandler) {
-            Process process = ((BaseProcessHandler<?>) handler).getProcess();
-            if (process != null) return String.valueOf(process.pid());
-        }
-        return null;
-    }
-
-    private void showNotification(Project project, String content, NotificationType type) {
-        NotificationGroupManager.getInstance()
-            .getNotificationGroup("Ignite Notification Group")
-            .createNotification(content, type)
-            .notify(project);
     }
 }

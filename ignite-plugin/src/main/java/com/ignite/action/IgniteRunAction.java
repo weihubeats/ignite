@@ -6,12 +6,12 @@ import com.ignite.core.DataGenerator;
 import com.ignite.core.IgniteMethodExecutor;
 import com.ignite.core.JacksonSupport;
 import com.ignite.infra.IgniteLastRunService;
+import com.ignite.infra.IgniteNotifier;
 import com.ignite.infra.LastRunRecord;
 import com.ignite.infra.PidUtils;
 import com.intellij.ide.util.PropertiesComponent;
 import com.intellij.lang.Language;
 import com.intellij.notification.NotificationType;
-import com.intellij.notification.NotificationGroupManager;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
@@ -50,13 +50,13 @@ public class IgniteRunAction extends AnAction {
         PsiMethod method = (PsiMethod) e.getData(CommonDataKeys.PSI_ELEMENT);
 
         if (project == null || method == null) {
-            showNotification(project, "请先将光标放置在 Java 方法名上", NotificationType.WARNING);
+            IgniteNotifier.notify(project, "请先将光标放置在 Java 方法名上", NotificationType.WARNING);
             return;
         }
 
         List<PidUtils.RunningApp> runningApps = PidUtils.getRunningApps(project);
         if (runningApps.isEmpty()) {
-            showNotification(project, "未找到运行中的 Java 服务！", NotificationType.WARNING);
+            IgniteNotifier.notify(project, "未找到运行中的 Java 服务！", NotificationType.WARNING);
             return;
         }
 
@@ -110,10 +110,16 @@ public class IgniteRunAction extends AnAction {
         IgniteMethodExecutor.execute(project, method, jsonArgs, selectedApp);
     }
 
-    // 生成唯一的缓存 Key: 包名.类名.方法名(参数个数)
+    // 生成唯一的缓存 Key: 包名.类名.方法名(参数类型列表)，区分同名重载方法
     private String getCacheKey(PsiMethod method) {
         String className = method.getContainingClass() != null ? method.getContainingClass().getQualifiedName() : "Unknown";
-        return HISTORY_KEY_PREFIX + className + "." + method.getName() + "_" + method.getParameterList().getParametersCount();
+        StringBuilder key = new StringBuilder(HISTORY_KEY_PREFIX).append(className).append('.').append(method.getName()).append('(');
+        PsiParameter[] params = method.getParameterList().getParameters();
+        for (int i = 0; i < params.length; i++) {
+            if (i > 0) key.append(',');
+            key.append(params[i].getType().getCanonicalText());
+        }
+        return key.append(')').toString();
     }
 
     private static class IgniteDialog extends DialogWrapper {
@@ -222,10 +228,7 @@ public class IgniteRunAction extends AnAction {
         }
 
         private static void showDialogNotification(Project project, String content, NotificationType type) {
-            NotificationGroupManager.getInstance()
-                .getNotificationGroup("Ignite Notification Group")
-                .createNotification(content, type)
-                .notify(project);
+            IgniteNotifier.notify(project, content, type);
         }
 
         public PidUtils.RunningApp getSelectedApp() {
@@ -235,12 +238,5 @@ public class IgniteRunAction extends AnAction {
         public String getJsonInput() {
             return jsonEditor.getText();
         }
-    }
-
-    private void showNotification(Project project, String content, NotificationType type) {
-        NotificationGroupManager.getInstance()
-            .getNotificationGroup("Ignite Notification Group")
-            .createNotification(content, type)
-            .notify(project);
     }
 }

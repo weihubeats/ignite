@@ -2,11 +2,11 @@ package com.ignite.action;
 
 import com.ignite.core.IgniteMethodExecutor;
 import com.ignite.infra.IgniteLastRunService;
+import com.ignite.infra.IgniteNotifier;
 import com.ignite.infra.LastRunRecord;
 import com.ignite.infra.PidUtils;
 import com.intellij.icons.AllIcons;
 import com.intellij.notification.NotificationType;
-import com.intellij.notification.NotificationGroupManager;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.project.Project;
@@ -43,13 +43,13 @@ public class IgniteRerunAction extends AnAction {
         IgniteLastRunService lastRunService = IgniteLastRunService.getInstance(project);
         LastRunRecord record = lastRunService.getLastRun();
         if (record == null) {
-            showNotification(project, "暂无上次运行记录，请先通过 Ignite Run 执行一次方法", NotificationType.WARNING);
+            IgniteNotifier.notify(project, "暂无上次运行记录，请先通过 Ignite Run 执行一次方法", NotificationType.WARNING);
             return;
         }
 
         PsiMethod method = lastRunService.resolveMethod(project, record);
         if (method == null) {
-            showNotification(
+            IgniteNotifier.notify(
                 project,
                 "无法定位方法: " + record.getMethodSignature() + "，请确认源码仍在项目中",
                 NotificationType.ERROR
@@ -59,7 +59,7 @@ public class IgniteRerunAction extends AnAction {
 
         PidUtils.RunningApp selectedApp = lastRunService.resolveRunningApp(project, record);
         if (selectedApp == null) {
-            showNotification(
+            IgniteNotifier.notify(
                 project,
                 "上次目标进程 (PID: " + record.getPid() + ") 已不在运行，请重新 Ignite Run 选择服务",
                 NotificationType.WARNING
@@ -68,12 +68,5 @@ public class IgniteRerunAction extends AnAction {
         }
 
         IgniteMethodExecutor.execute(project, method, record.getJsonArgs(), selectedApp);
-    }
-
-    private void showNotification(Project project, String content, NotificationType type) {
-        NotificationGroupManager.getInstance()
-            .getNotificationGroup("Ignite Notification Group")
-            .createNotification(content, type)
-            .notify(project);
     }
 }

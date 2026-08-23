@@ -22,6 +22,10 @@
             <add-to-group group-id="RunMenu" anchor="last"/>
             <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt shift E"/>
         </action>
+        <action id="IgniteToggleAutoAttach" class="com.ignite.action.IgniteToggleAutoAttachAction"
+                text="Ignite: 自动 Attach 新进程" description="Toggle auto-attach of Arthas to new Java processes">
+            <add-to-group group-id="RunMenu" anchor="last"/>
+        </action>
     </actions>
 
     <extensions defaultExtensionNs="com.intellij">
