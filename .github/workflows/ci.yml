@@ -48,7 +48,7 @@ jobs:
 
       - name: Upload test reports (失败时)
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-reports-${{ github.run_id }}
           path: |
@@ -58,7 +58,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Upload plugin zip
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ignite-plugin-zip-${{ github.run_id }}
           path: ignite-plugin/build/distributions/*.zip
