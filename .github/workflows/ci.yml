@@ -31,7 +31,7 @@ jobs:
           java-version: '21'
 
       - name: Setup Gradle (wrapper 校验 + 依赖缓存)
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
         with:
           validate-wrappers: true
           # 非 main/master 分支只读缓存，避免 PR 污染主缓存
