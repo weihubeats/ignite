@@ -1,0 +1,77 @@
+name: Release Plugin
+
+# 推送 v* 格式的 tag 自动发布插件到 GitHub Releases，供用户直接下载安装。
+# 流程：校验 tag 与构建版本一致 -> 跑测试（稳定性门禁）-> 构建插件 zip -> 创建 Release。
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write # 创建 Release 需要写权限
+
+jobs:
+  release:
+    name: Test, Build & Publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          validate-wrappers: true
+
+      - name: Cache IntelliJ mock JDK
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository/org/jetbrains/mockjdk
+          key: mockjdk-base-java-11
+
+      - name: Verify tag matches build version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          TAG_VERSION="${TAG#v}"
+          ROOT_VERSION=$(sed -n 's/^version = "\(.*\)"$/\1/p' build.gradle.kts | head -1)
+          PLUGIN_VERSION=$(sed -n 's/^version = "\(.*\)"$/\1/p' ignite-plugin/build.gradle.kts | head -1)
+
+          echo "tag=$TAG_VERSION root=$ROOT_VERSION plugin=$PLUGIN_VERSION"
+
+          if [ -z "$TAG_VERSION" ] || [ "$TAG_VERSION" != "$ROOT_VERSION" ] || [ "$TAG_VERSION" != "$PLUGIN_VERSION" ]; then
+            echo "::error::tag '$TAG' 与构建版本不一致！请保证 tag(vX.Y.Z)、根 build.gradle.kts、ignite-plugin/build.gradle.kts 三处版本完全相同"
+            exit 1
+          fi
+
+      - name: Run tests
+        run: ./gradlew :ignite-plugin:test --stacktrace
+
+      - name: Build plugin
+        run: ./gradlew :ignite-plugin:buildPlugin --stacktrace
+
+      - name: Upload artifact (留存构建产物)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ignite-plugin-zip-${{ github.ref_name }}
+          path: ignite-plugin/build/distributions/*.zip
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$TAG" \
+            --title "Ignite $TAG" \
+            --generate-notes \
+            ignite-plugin/build/distributions/*.zip

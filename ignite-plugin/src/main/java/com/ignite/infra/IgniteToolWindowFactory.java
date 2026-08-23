@@ -33,6 +33,8 @@ public class IgniteToolWindowFactory implements ToolWindowFactory {
         ContentManager contentManager = toolWindow.getContentManager();
         ContentFactory contentFactory = contentManager.getFactory();
         Content content = contentFactory.createContent(panel, "", false);
+        // ConsoleView 是 Disposable，绑定到 Content 生命周期，避免工具窗反复开关导致泄漏
+        content.setDisposer(consoleView);
         contentManager.addContent(content);
 
         IgniteConsoleService.getInstance(project).initConsoleView(consoleView);

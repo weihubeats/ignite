@@ -18,7 +18,9 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -364,20 +366,19 @@ public class DataGenerator {
     }
 
     private static void addEnumValue(ObjectNode node, String key, PsiClass psiClass) {
-        PsiField[] enumConstants = psiClass.getFields();
-        if (enumConstants.length == 0) {
+        // 只统计枚举常量本身：枚举体内声明的 public static 字段不应参与随机索引
+        List<String> constants = new ArrayList<>();
+        for (PsiField field : psiClass.getFields()) {
+            if (field instanceof PsiEnumConstant) {
+                constants.add(field.getName());
+            }
+        }
+        if (constants.isEmpty()) {
             node.putNull(key);
             return;
         }
-
-        int index = faker.number().numberBetween(0, Math.max(0, enumConstants.length - 1));
-        for (int i = 0; i < enumConstants.length; i++) {
-            if (enumConstants[i] instanceof PsiEnumConstant && i == index) {
-                node.put(key, enumConstants[i].getName());
-                return;
-            }
-        }
-        node.putNull(key);
+        int index = faker.number().numberBetween(0, constants.size());
+        node.put(key, constants.get(index));
     }
 
     private static Map<String, PsiType> mergeTypeMap(

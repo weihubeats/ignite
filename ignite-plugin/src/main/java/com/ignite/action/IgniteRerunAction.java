@@ -67,6 +67,6 @@ public class IgniteRerunAction extends AnAction {
             return;
         }
 
-        IgniteMethodExecutor.execute(project, method, record.getJsonArgs(), selectedApp);
+        IgniteMethodExecutor.execute(project, method, record.getJsonArgs(), selectedApp, null);
     }
 }

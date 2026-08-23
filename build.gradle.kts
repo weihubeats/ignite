@@ -1,6 +1,6 @@
 
 group = "io.github.weihubeats"
-version = "1.0.9"
+version = "1.1.0"
 
 subprojects {
     // 在这里应用 Java 插件即可，它是内置的，直接用名字

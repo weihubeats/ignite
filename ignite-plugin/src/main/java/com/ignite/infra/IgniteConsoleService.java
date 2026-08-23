@@ -69,16 +69,23 @@ public final class IgniteConsoleService {
         consoleView.print("\n", ConsoleViewContentType.NORMAL_OUTPUT);
     }
 
-    private boolean isErrorResult(String result) {
+    /** 异常类名（如 NullPointerException）或 Caused by 行 */
+    private static final java.util.regex.Pattern EXCEPTION_PATTERN =
+        java.util.regex.Pattern.compile("\\b[\\w$]+(?:Exception|Error)\\b|^\\s*Caused by:", java.util.regex.Pattern.MULTILINE);
+
+    /**
+     * 结果是否为错误。只认异常类名/显式失败标记，
+     * 不再用裸 "error"/"failed" 子串匹配——避免正常结果里的 errorMsg 字段误标红。
+     */
+    static boolean isErrorResult(String result) {
         if (result == null || result.isBlank()) {
             return false;
         }
-        String lower = result.toLowerCase();
-        return lower.contains("exception")
-            || lower.contains("error")
-            || lower.contains("failed")
-            || lower.contains("未找到")
-            || lower.contains("通信失败");
+        // 插件自身的失败提示与超时警告
+        if (result.contains("未找到") || result.contains("通信失败") || result.contains("等待提示符超时")) {
+            return true;
+        }
+        return EXCEPTION_PATTERN.matcher(result).find();
     }
 
     public void printError(String error) {

@@ -2,6 +2,7 @@ package com.ignite.infra;
 
 import com.intellij.execution.ExecutionListener;
 import com.intellij.execution.ExecutionManager;
+import com.intellij.execution.application.ApplicationConfiguration;
 import com.intellij.execution.process.ProcessHandler;
 import com.intellij.execution.runners.ExecutionEnvironment;
 import com.intellij.notification.NotificationType;
@@ -69,6 +70,13 @@ public class IgniteAutoAttacher implements ProjectActivity {
             public void processStarted(@NotNull String executorId, @NotNull ExecutionEnvironment env,
                 @NotNull ProcessHandler handler) {
                 if (!isAutoAttachEnabled()) {
+                    return;
+                }
+                // 只自动 attach Java 应用运行配置：
+                // 排除 Gradle daemon、测试 JVM 等短生命周期进程，避免注入开销与干扰构建
+                var settings = env.getRunnerAndConfigurationSettings();
+                if (settings == null
+                    || !(settings.getConfiguration() instanceof ApplicationConfiguration)) {
                     return;
                 }
                 triggerBackgroundAttach(project, handler);

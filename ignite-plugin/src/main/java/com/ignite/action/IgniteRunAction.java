@@ -84,10 +84,7 @@ public class IgniteRunAction extends AnAction {
         final String jsonArgs = (rawJson == null || rawJson.trim().isEmpty()) ? "{}" : rawJson.trim();
         PidUtils.RunningApp selectedApp = dialog.getSelectedApp();
 
-        // 3. 【参数记忆】保存本次运行的参数
-        PropertiesComponent.getInstance(project).setValue(cacheKey, jsonArgs);
-
-        // 4. 记录最近一次运行，供 Ignite Rerun Last 一键重跑
+        // 3. 记录最近一次运行，供 Ignite Rerun Last 一键重跑（命令成功送达后写入）
         String className = method.getContainingClass() != null
             ? method.getContainingClass().getQualifiedName()
             : "Unknown";
@@ -96,7 +93,7 @@ public class IgniteRunAction extends AnAction {
         for (int i = 0; i < params.length; i++) {
             paramTypes[i] = params[i].getType().getCanonicalText();
         }
-        IgniteLastRunService.getInstance(project).save(new LastRunRecord(
+        LastRunRecord lastRunRecord = new LastRunRecord(
             className,
             method.getName(),
             method.getParameterList().getParametersCount(),
@@ -104,10 +101,14 @@ public class IgniteRunAction extends AnAction {
             selectedApp.pid,
             selectedApp.displayName,
             paramTypes
-        ));
+        );
 
-        // 5. 异步执行
-        IgniteMethodExecutor.execute(project, method, jsonArgs, selectedApp);
+        // 4. 异步执行；参数记忆在命令成功送达后才保存，避免把失败请求固化成历史
+        Runnable onCommandAccepted = () -> {
+            PropertiesComponent.getInstance(project).setValue(cacheKey, jsonArgs);
+            IgniteLastRunService.getInstance(project).save(lastRunRecord);
+        };
+        IgniteMethodExecutor.execute(project, method, jsonArgs, selectedApp, onCommandAccepted);
     }
 
     // 生成唯一的缓存 Key: 包名.类名.方法名(参数类型列表)，区分同名重载方法

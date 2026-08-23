@@ -1,6 +1,8 @@
 🚀 Ignite Plugin - IntelliJ Arthas Integration
 ==============================================
 
+[![CI](https://github.com/weihubeats/ignite/actions/workflows/ci.yml/badge.svg)](https://github.com/weihubeats/ignite/actions/workflows/ci.yml)
+
 **Ignite** 是一款专为 IntelliJ IDEA 设计的开发效能插件。通过右键菜单直接调用运行中进程（Spring Boot/Java 应用）的任意方法。
 
 
@@ -25,7 +27,7 @@
 
     *   内置 JSON 高亮编辑器，支持语法检查与格式化。
 
-    *   **参数记忆功能**：自动保存上次成功运行的参数，拒绝重复输入。
+    *   **参数记忆功能**：命令执行成功后自动保存本次入参，拒绝重复输入。
 
 * * *
 
@@ -65,7 +67,22 @@
 
 4. 打开 IDEA -> `Settings` -> `Plugins` -> ⚙️ 图标 -> `Install Plugin from Disk...`，选择该 zip 包安装。
 
+### 从 GitHub Releases 下载
+
+前往 [Releases](https://github.com/weihubeats/ignite/releases) 页面下载最新版本的 zip 包，按上述方式安装。
+
 * * *
+
+🚢 发布流程 (Release)
+---------------------
+
+插件通过 CI 自动发布，维护者只需：
+
+1. 同步修改根目录与 `ignite-plugin/build.gradle.kts` 中的 `version`（三处版本必须一致：tag、根构建脚本、子项目构建脚本）；
+2. 提交并打 tag：`git tag v1.0.10 && git push origin v1.0.10`；
+3. CI 自动完成：版本一致性校验 → 全量测试 → 构建插件 zip → 发布到 GitHub Releases。
+
+> 版本不一致或测试失败时发布会被拦截，不会产生残缺的 Release。
 
 📖 使用说明 (Usage)
 ---------------

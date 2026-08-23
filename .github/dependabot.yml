@@ -1,0 +1,18 @@
+version: 2
+updates:
+  # 依赖更新：及时跟进 Gradle 依赖的安全补丁与 bugfix
+  - package-ecosystem: gradle
+    directory: /ignite-plugin
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      jackson:
+        patterns:
+          - "com.fasterxml.jackson*"
+
+  # CI Action 版本更新，避免第三方 action 被篡改或失效导致 CI 挂掉
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

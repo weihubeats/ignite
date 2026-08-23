@@ -18,7 +18,6 @@ public class ArthasController {
 
     private static final Logger LOG = Logger.getInstance(ArthasController.class);
 
-    private static final int PORT = 3658;
     private static final String TARGET_IP = "127.0.0.1";
 
     private static final DateTimeFormatter LOG_TS = DateTimeFormatter.ofPattern("HH:mm:ss.SSS");
@@ -33,18 +32,20 @@ public class ArthasController {
     private static final int PHASE3_LOG_INTERVAL = 5;
 
     /**
-     * 连接状态快照：不可变对象整体替换，保证多线程读到的是一致的 (connected, pid, checkedAt) 组合。
+     * 连接状态快照：不可变对象整体替换，保证多线程读到的是一致的 (connected, pid, port, checkedAt) 组合。
      */
     private static final class ConnectionState {
-        static final ConnectionState DISCONNECTED = new ConnectionState(false, null, 0);
+        static final ConnectionState DISCONNECTED = new ConnectionState(false, null, 0, 0);
 
         final boolean connected;
         final String pid;
+        final int port;
         final long checkedAt;
 
-        ConnectionState(boolean connected, String pid, long checkedAt) {
+        ConnectionState(boolean connected, String pid, int port, long checkedAt) {
             this.connected = connected;
             this.pid = pid;
+            this.port = port;
             this.checkedAt = checkedAt;
         }
     }
@@ -76,31 +77,33 @@ public class ArthasController {
      * 检查 Arthas 是否已连接到指定 PID（带缓存）
      */
     public static boolean isArthasConnected(String expectedPid) {
+        int port = IgnitePorts.portFor(expectedPid);
         ConnectionState state = connectionState.get();
         long now = System.currentTimeMillis();
 
         // 检查缓存是否有效
         if (now - state.checkedAt < CONNECTION_CACHE_TTL_MS) {
-            // 如果指定了 PID，检查是否匹配
-            if (expectedPid != null && !expectedPid.equals(state.pid)) {
+            // 如果指定了 PID，检查 PID 与端口是否都匹配
+            if (expectedPid != null && (!expectedPid.equals(state.pid) || port != state.port)) {
                 return false;
             }
             return state.connected;
         }
 
         // 缓存过期，重新检测；并发时多个线程可能同时探测端口，结果幂等无副作用
-        boolean isConnected = ArthasTelnetClient.isPortOpen(TARGET_IP, PORT);
+        boolean isConnected = ArthasTelnetClient.isPortOpen(TARGET_IP, port);
         String pid = isConnected ? (state.pid != null ? state.pid : expectedPid) : null;
-        connectionState.set(new ConnectionState(isConnected, pid, now));
+        connectionState.set(new ConnectionState(isConnected, pid, port, now));
 
         return isConnected;
     }
 
     private static void markConnected(String pid) {
-        connectionState.set(new ConnectionState(true, pid, System.currentTimeMillis()));
+        connectionState.set(new ConnectionState(true, pid, IgnitePorts.portFor(pid), System.currentTimeMillis()));
     }
 
     public static void attach(String pid, IgniteConsoleService console) throws Exception {
+        int port = IgnitePorts.portFor(pid);
         if (isArthasConnected(pid)) {
             log(console, "Arthas 已连接到 PID " + pid + "，跳过 attach");
             return;
@@ -113,7 +116,7 @@ public class ArthasController {
 
         String javaHome = System.getProperty("java.home");
         String javaBin = javaHome + File.separator + "bin" + File.separator + "java";
-        if (System.getProperty("os.name").toLowerCase().contains("win"))
+        if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win"))
             javaBin += ".exe";
         if (!new File(javaBin).exists())
             javaBin = "java";
@@ -138,7 +141,7 @@ public class ArthasController {
                 "-Djava.library.path=" + libraryPath,
                 "-jar", jar.getAbsolutePath(),
                 "--select", pid,
-                "--telnet-port", String.valueOf(PORT),
+                "--telnet-port", String.valueOf(port),
                 "--target-ip", TARGET_IP,
                 "--attach-only",
                 "--arthas-home", arthasHome.getAbsolutePath()
@@ -150,7 +153,7 @@ public class ArthasController {
                 "-Djava.library.path=" + libraryPath,
                 "-jar", jar.getAbsolutePath(),
                 "--select", pid,
-                "--telnet-port", String.valueOf(PORT),
+                "--telnet-port", String.valueOf(port),
                 "--target-ip", TARGET_IP,
                 "--attach-only"
             );
@@ -175,7 +178,7 @@ public class ArthasController {
                 && !Thread.currentThread().isInterrupted()) {
             checkCount++;
             if (checkCount % PHASE1_CONNECT_CHECK_INTERVAL == 0) {
-                if (ArthasTelnetClient.isPortOpen(TARGET_IP, PORT)) {
+                if (ArthasTelnetClient.isPortOpen(TARGET_IP, port)) {
                     markConnected(pid);
                     log(console, "Arthas 连接成功 (Phase 1, 尝试 " + checkCount + " 次)");
                     return;
@@ -209,7 +212,7 @@ public class ArthasController {
         int postCheckCount = 0;
         while (System.currentTimeMillis() < postDeadline && !Thread.currentThread().isInterrupted()) {
             postCheckCount++;
-            if (ArthasTelnetClient.isPortOpen(TARGET_IP, PORT)) {
+            if (ArthasTelnetClient.isPortOpen(TARGET_IP, port)) {
                 markConnected(pid);
                 log(console, "Arthas 连接成功 (Phase 3, 尝试 " + postCheckCount + " 次, 总计 " + (checkCount + postCheckCount) + " 次)");
                 return;
@@ -233,42 +236,23 @@ public class ArthasController {
     }
 
     /**
-     * 获取当前连接的 PID
-     */
-    public static String getConnectedPid() {
-        return connectionState.get().pid;
-    }
-
-    /**
-     * 清除连接缓存（用于强制重新检测）
-     */
-    public static void invalidateConnectionCache() {
-        connectionState.set(ConnectionState.DISCONNECTED);
-    }
-
-    /**
-     * 兼容旧版本，不带日志
+     * 兼容不带 Console 的调用方（如自动 attach）
      */
     public static void attach(String pid) throws Exception {
         attach(pid, null);
     }
 
     /**
-     * 发送命令，带重试机制
+     * 发送命令并等待执行结果，带重试机制。
+     *
+     * @param cancelCheck 进度取消检查，可为 null；返回 true 时立即中止等待
      */
-    public static String sendCommand(String command) {
-        return telnetClient().executeCommand(command, true);
+    public static String sendCommand(String pid, String command, java.util.function.BooleanSupplier cancelCheck) {
+        return telnetClient(pid).executeCommand(command, true, cancelCheck);
     }
 
-    /**
-     * 发送命令但不等待方法返回结果，避免在 debug 断点场景下阻塞。
-     */
-    public static void sendCommandWithoutResult(String command) {
-        telnetClient().executeCommand(command, false);
-    }
-
-    private static ArthasTelnetClient telnetClient() {
-        return new ArthasTelnetClient(TARGET_IP, PORT);
+    private static ArthasTelnetClient telnetClient(String pid) {
+        return new ArthasTelnetClient(TARGET_IP, IgnitePorts.portFor(pid));
     }
 
     /**
@@ -285,19 +269,25 @@ public class ArthasController {
 
     /**
      * 后台线程持续读取 attach 进程输出，防止缓冲区写满阻塞进程。
+     * 行日志按时间窗口批量刷入 Console，避免逐行 invokeLater 刷爆 EDT。
      */
     private static final class ProcessOutputGobbler extends Thread {
         private static final int MAX_CAPTURED_CHARS = 2000;
+        private static final long FLUSH_INTERVAL_MS = 300;
+        private static final int FLUSH_BATCH_CHARS = 4000;
 
         private final Process process;
         private final IgniteConsoleService console;
         private final StringBuilder captured = new StringBuilder();
+        private final StringBuilder pendingLines = new StringBuilder();
+        private long lastFlushAt;
 
         ProcessOutputGobbler(Process process, IgniteConsoleService console) {
             super("Ignite-Arthas-Output");
             setDaemon(true);
             this.process = process;
             this.console = console;
+            this.lastFlushAt = System.currentTimeMillis();
         }
 
         @Override
@@ -307,16 +297,32 @@ public class ArthasController {
                 String line;
                 while ((line = reader.readLine()) != null) {
                     if (console != null) {
-                        console.printLog("[Arthas] " + line);
+                        pendingLines.append(line).append('\n');
+                        if (pendingLines.length() >= FLUSH_BATCH_CHARS
+                            || System.currentTimeMillis() - lastFlushAt >= FLUSH_INTERVAL_MS) {
+                            flushPending();
+                        }
                     }
                     if (captured.length() < MAX_CAPTURED_CHARS) {
                         captured.append(line, 0, Math.min(line.length(), MAX_CAPTURED_CHARS - captured.length()))
                             .append('\n');
                     }
                 }
+                flushPending();
             } catch (IOException e) {
                 LOG.info("读取 attach 进程输出中断: " + e.getMessage());
             }
+        }
+
+        private void flushPending() {
+            lastFlushAt = System.currentTimeMillis();
+            if (pendingLines.length() == 0 || console == null) {
+                return;
+            }
+            String batch = "[Arthas] " + pendingLines.toString().replace("\n", "\n[Arthas] ");
+            batch = batch.substring(0, batch.length() - "[Arthas] ".length());
+            console.printLog(batch);
+            pendingLines.setLength(0);
         }
 
         /** 等待输出线程结束（最多 2 秒）并返回捕获的输出 */
