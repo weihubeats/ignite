@@ -32,7 +32,7 @@ jobs:
           validate-wrappers: true
 
       - name: Cache IntelliJ mock JDK
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.m2/repository/org/jetbrains/mockjdk
           key: mockjdk-base-java-11
